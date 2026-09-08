@@ -10,3 +10,5 @@ CanvasGPT converts Canvas assignments into editable checklists and personalized 
 4. Run migrations with `python manage.py migrate`.
 5. Start the server with `python manage.py runserver`.
 6. Open http://127.0.0.1:8000/.
+
+test
