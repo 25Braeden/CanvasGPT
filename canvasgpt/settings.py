@@ -37,6 +37,10 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'canvas_sync',
+    'ai_assistant',
+    'planner',
+    'accounts'
 ]
 
 MIDDLEWARE = [
