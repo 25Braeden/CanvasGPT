@@ -1,6 +1,18 @@
 from django.conf import settings
 from django.db import models
 
+class CanvasConnection(models.Model):
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="canvas_connection",
+    )
+    canvas_base_url = models.URLField()
+    access_token = models.CharField(max_length=255)
+
+    def __str__(self):
+        return f"{self.user.username}'s Canvas connection"
+
 
 class Course(models.Model):
     """A Canvas course imported for a student."""
