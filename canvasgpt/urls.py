@@ -25,4 +25,5 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('accounts/', include('accounts.urls')),
     path('', include('canvas_sync.urls')),
+    path('', include('ai_assistant.urls')),
 ]

@@ -4,6 +4,8 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 
+from ai_assistant.forms import TaskItemForm
+
 from .models import Assignment
 
 STALE_AFTER = timedelta(hours=24)
@@ -20,7 +22,11 @@ def assignment_detail(request, pk):
     return render(
         request,
         'canvas_sync/assignment_detail.html',
-        {'assignment': assignment},
+        {
+            'assignment': assignment,
+            'task_items': assignment.task_items.filter(user=request.user),
+            'task_form': TaskItemForm(),
+        },
     )
 
 
