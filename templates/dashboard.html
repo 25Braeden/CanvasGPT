@@ -11,5 +11,30 @@
 <p>Welcome back, {{ user.username }}.</p>
 {% endif %}
 <p>Your Canvas courses, assignments, and study plans will appear here.</p>
+
+<h2>Assignments</h2>
+{% if assignments %}
+<ul class="assignment-list">
+    {% for assignment in assignments %}
+    <li class="assignment-row">
+        <div>
+            <strong><a href="{% url 'canvas_sync:assignment_detail' assignment.pk %}">{{ assignment.title }}</a></strong>
+            <p>{{ assignment.course.name }}{% if assignment.due_at %} · Due {{ assignment.due_at|date:"M j, Y, g:i A" }}{% endif %}</p>
+        </div>
+        {% if assignment.points_possible %}<span>{{ assignment.points_possible }} pts</span>{% endif %}
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<p>No synchronized Canvas assignments yet.</p>
+{% endif %}
+
+<div class="sync-status {{ sync_status.level }}" role="status">
+    <strong>Canvas sync: {{ sync_status.label }}</strong>
+    <p>{{ sync_status.message }}</p>
+    {% if sync_status.last_synced %}
+    <p>Last synced {{ sync_status.last_synced|date:"M j, Y, g:i A" }}.</p>
+    {% endif %}
+</div>
 </section>
 {% endblock %}

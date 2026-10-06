@@ -133,6 +133,18 @@
         fieldset { margin: 1.5rem 0; padding: 1.25rem; border: 1px solid var(--border); border-radius: 1rem; }
         legend { padding: 0 0.5rem; font-weight: 800; }
 
+        .content-card.wide { width: min(100%, 56rem); }
+        .metadata-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+        .metadata-item, .rubric-item, .assignment-row, .sync-status { padding: 1rem; border: 1px solid var(--border); border-radius: 1rem; background: rgba(255, 255, 255, 0.72); }
+        .metadata-label { display: block; margin-bottom: 0.35rem; color: var(--muted); font-size: 0.85rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; }
+        .description-block { margin: 1.5rem 0; padding: 1rem; border: 1px solid var(--border); border-radius: 1rem; background: white; }
+        .rubric-list, .assignment-list { display: grid; gap: 1rem; margin: 1rem 0 0; padding: 0; list-style: none; }
+        .assignment-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+        .sync-status.success { border-color: #98d9af; background: #effaf3; }
+        .sync-status.warning { border-color: #f4c46a; background: #fff8e8; }
+        .sync-status.error { border-color: #f4a3a3; background: #fff1f1; }
+        .sync-status strong { display: block; margin-bottom: 0.35rem; }
+
         @media (max-width: 640px) {
             .site-nav { align-items: flex-start; flex-direction: column; margin-bottom: 2.5rem; }
         }

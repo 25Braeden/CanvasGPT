@@ -24,4 +24,5 @@ urlpatterns = [
     path('dashboard/', views.dashboard, name='dashboard'),
     path('admin/', admin.site.urls),
     path('accounts/', include('accounts.urls')),
+    path('', include('canvas_sync.urls')),
 ]
