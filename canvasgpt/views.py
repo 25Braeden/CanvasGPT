@@ -42,6 +42,23 @@ def get_dashboard_sync_status(assignments):
             'message': 'Canvas assignment data has not been synchronized for this account yet.',
         }
 
+    failed_assignments = [
+        assignment
+        for assignment in assignment_list
+        if assignment.sync_status == Assignment.SyncStatus.FAILED
+    ]
+    if failed_assignments:
+        error_messages = [
+            assignment.sync_error_message
+            for assignment in failed_assignments
+            if assignment.sync_error_message
+        ]
+        return {
+            'level': 'error',
+            'label': 'Sync failed',
+            'message': error_messages[0] if error_messages else 'Canvas synchronization failed for one or more assignments.',
+        }
+
     last_synced_values = [assignment.last_synchronized_at for assignment in assignment_list]
     if any(value is None for value in last_synced_values):
         return {
