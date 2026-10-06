@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+
+{% block title %}Sign up | CanvasGPT{% endblock %}
+
+{% block content %}
+<h1>Sign up</h1>
+<form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Create account</button>
+</form>
+<p>Already have an account? <a href="{% url 'accounts:login' %}">Log in</a></p>
+{% endblock %}

@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+
+{% block title %}Signed out | CanvasGPT{% endblock %}
+
+{% block content %}
+<h1>You are signed out</h1>
+<p>Your CanvasGPT session has ended.</p>
+<p><a href="{% url 'accounts:login' %}">Log in again</a></p>
+{% endblock %}

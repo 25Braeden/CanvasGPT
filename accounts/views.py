@@ -6,14 +6,15 @@ from .forms import SignUpForm
 
 def signup(request):
     if request.user.is_authenticated:
-        return redirect('/')
+        return redirect('/dashboard/')
 
     if request.method == 'POST':
         form = SignUpForm(request.POST)
         if form.is_valid():
             user = form.save()
             login(request, user)
-            return redirect('/')
+            request.session['new_user'] = True
+            return redirect('/dashboard/')
     else:
         form = SignUpForm()
 
