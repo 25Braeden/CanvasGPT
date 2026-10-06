@@ -13,6 +13,18 @@
             --primary-dark: #2547cc;
             --card: #ffffff;
             --border: #e1e6f0;
+            --page-glow: #dfe7ff;
+        }
+
+        body.dark-mode {
+            --bg: #0f172a;
+            --text: #e5e7eb;
+            --muted: #a7b0c0;
+            --primary: #7c9cff;
+            --primary-dark: #a8bcff;
+            --card: #111827;
+            --border: #334155;
+            --page-glow: #1e3a8a;
         }
 
         * {
@@ -24,7 +36,7 @@
             min-height: 100vh;
             font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             color: var(--text);
-            background: radial-gradient(circle at top left, #dfe7ff 0, transparent 32rem), var(--bg);
+            background: radial-gradient(circle at top left, var(--page-glow) 0, transparent 32rem), var(--bg);
         }
 
         .page {
@@ -62,11 +74,24 @@
 
         .nav-actions, .hero-actions {
             display: flex;
+            align-items: center;
             flex-wrap: wrap;
             gap: 0.75rem;
         }
 
-        .button {
+        .nav-actions form {
+            margin: 0;
+        }
+
+        .signed-in-label {
+            display: inline-flex;
+            align-items: center;
+            min-height: 2.75rem;
+            color: var(--muted);
+            font-weight: 700;
+        }
+
+        .button, button.button {
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -75,24 +100,26 @@
             border-radius: 999px;
             border: 1px solid var(--border);
             color: var(--text);
-            background: rgba(255, 255, 255, 0.78);
+            background: var(--card);
+            font: inherit;
             font-weight: 700;
             text-decoration: none;
+            cursor: pointer;
             transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
         }
 
-        .button:hover {
+        .button:hover, button.button:hover {
             transform: translateY(-1px);
             box-shadow: 0 0.75rem 1.5rem rgba(23, 32, 51, 0.08);
         }
 
-        .button.primary {
+        .button.primary, button.button.primary {
             border-color: var(--primary);
             color: white;
             background: var(--primary);
         }
 
-        .button.primary:hover {
+        .button.primary:hover, button.button.primary:hover {
             background: var(--primary-dark);
         }
 
@@ -133,7 +160,7 @@
             padding: 2rem;
             border: 1px solid var(--border);
             border-radius: 2rem;
-            background: rgba(255, 255, 255, 0.82);
+            background: var(--card);
             box-shadow: 0 1.5rem 4rem rgba(23, 32, 51, 0.1);
             backdrop-filter: blur(10px);
         }
@@ -174,7 +201,7 @@
         }
     </style>
 </head>
-<body>
+<body{% if user.is_authenticated and user.student_profile.dark_mode_enabled %} class="dark-mode"{% endif %}>
     <main class="page">
         <nav class="nav" aria-label="Primary navigation">
             <div class="brand" aria-label="CanvasGPT home">
@@ -182,7 +209,17 @@
                 <span>CanvasGPT</span>
             </div>
             <div class="nav-actions">
-                <a class="button" href="{% url 'accounts:login' %}">Login</a>
+                {% if user.is_authenticated %}
+                    <span class="signed-in-label">Signed in as {{ user.username }}</span>
+                    <a class="button" href="{% url 'dashboard' %}">Dashboard</a>
+                    <a class="button" href="{% url 'accounts:profile' %}">Profile</a>
+                    <form method="post" action="{% url 'accounts:logout' %}">
+                        {% csrf_token %}
+                        <button class="button" type="submit">Log out</button>
+                    </form>
+                {% else %}
+                    <a class="button" href="{% url 'accounts:login' %}">Login</a>
+                {% endif %}
             </div>
         </nav>
 
@@ -195,8 +232,12 @@
                     then builds practical study plans around deadlines and available time.
                 </p>
                 <div class="hero-actions" id="get-started">
-                    <a class="button primary" href="{% url 'accounts:signup' %}">Get Started</a>
-                    <a class="button" href="{% url 'accounts:login' %}">Login</a>
+                    {% if user.is_authenticated %}
+                        <a class="button primary" href="{% url 'dashboard' %}">Go to dashboard</a>
+                    {% else %}
+                        <a class="button primary" href="{% url 'accounts:signup' %}">Get Started</a>
+                        <a class="button" href="{% url 'accounts:login' %}">Login</a>
+                    {% endif %}
                 </div>
             </div>
 

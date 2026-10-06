@@ -18,6 +18,7 @@ class StudentProfileAdmin(admin.ModelAdmin):
         'break_minutes',
         'daily_study_goal_minutes',
         'notifications_enabled',
+        'dark_mode_enabled',
     )
     search_fields = ('user__username', 'user__email')
-    list_filter = ('notifications_enabled', 'timezone')
+    list_filter = ('notifications_enabled', 'dark_mode_enabled', 'timezone')

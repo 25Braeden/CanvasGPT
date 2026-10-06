@@ -25,4 +25,5 @@ class StudentProfileForm(forms.ModelForm):
             'break_minutes',
             'daily_study_goal_minutes',
             'notifications_enabled',
+            'dark_mode_enabled',
         )

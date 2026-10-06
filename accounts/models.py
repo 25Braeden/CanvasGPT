@@ -29,6 +29,7 @@ class StudentProfile(models.Model):
         validators=[MinValueValidator(1)],
     )
     notifications_enabled = models.BooleanField(default=True)
+    dark_mode_enabled = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.user.username}'s student profile"
