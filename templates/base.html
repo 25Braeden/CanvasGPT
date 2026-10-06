@@ -11,6 +11,7 @@
             <a href="{% url 'home' %}">CanvasGPT</a>
             {% if user.is_authenticated %}
                 <span>Signed in as {{ user.username }}</span>
+                <a href="{% url 'accounts:profile' %}">Profile</a>
                 <form method="post" action="{% url 'accounts:logout' %}" style="display:inline">
                     {% csrf_token %}
                     <button type="submit">Log out</button>
