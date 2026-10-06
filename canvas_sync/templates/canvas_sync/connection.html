@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Canvas Connection</title>
+</head>
+<body>
+    <h1>Canvas Connection</h1>
+
+    {% if messages %}
+        {% for message in messages %}
+            <p>{{ message }}</p>
+        {% endfor %}
+    {% endif %}
+
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+
+        <button type="submit">
+            Save Canvas Connection
+        </button>
+    </form>
+
+   {% if connection %}
+    <p>Canvas connection is saved.</p>
+
+    <form method="post" action="{% url 'canvas_sync:sync' %}">
+        {% csrf_token %}
+        <button type="submit">
+            Sync Canvas
+        </button>
+    </form>
+{% endif %}
+</body>
+</html>

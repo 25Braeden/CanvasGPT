@@ -1,5 +1,6 @@
 import requests
 
+from .models import Assignment, Course, RubricCriterion
 
 class CanvasAPIClient:
     def __init__(self, base_url, access_token):
@@ -30,3 +31,50 @@ class CanvasAPIClient:
                 "per_page": 100,
             },
         )
+    
+    def get_course_assignments(self, course_id):
+        return self.get(
+            f"courses/{course_id}/assignments",
+            params={
+                "per_page": 100,
+            },
+        )    
+    def sync_user_data(self, user):
+        courses_data = self.get_active_courses()
+
+        for course_data in courses_data:
+            course, _ = Course.objects.update_or_create(
+                user=user,
+                canvas_course_id=course_data["id"],
+                defaults={
+                    "name": course_data.get("name", ""),
+                    "course_code": course_data.get("course_code", ""),
+                    "term": course_data.get("term", {}).get("name", ""),
+                    "is_active": True,
+                },
+            )
+
+            assignments_data = self.get_course_assignments(course.canvas_course_id)
+
+            for assignment_data in assignments_data:
+                assignment, _ = Assignment.objects.update_or_create(
+                    course=course,
+                    canvas_assignment_id=assignment_data["id"],
+                    defaults={
+                        "title": assignment_data.get("name", ""),
+                        "description": assignment_data.get("description") or "",
+                        "due_at": assignment_data.get("due_at"),
+                        "points_possible": assignment_data.get("points_possible"),
+                        "submission_url": assignment_data.get("html_url", ""),
+                    },
+                )
+
+                for criterion_data in assignment_data.get("rubric", []):
+                    RubricCriterion.objects.update_or_create(
+                        assignment=assignment,
+                        title=criterion_data.get("description", ""),
+                        defaults={
+                            "description": criterion_data.get("long_description") or "",
+                            "points": criterion_data.get("points"),
+                        },
+                    )

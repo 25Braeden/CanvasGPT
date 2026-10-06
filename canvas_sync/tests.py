@@ -2,7 +2,11 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 
 from .models import Assignment, CanvasConnection, Course, RubricCriterion
+from unittest.mock import patch
 
+from django.urls import reverse
+
+from .services import CanvasAPIClient
 
 class CanvasModelTests(TestCase):
 
@@ -69,3 +73,60 @@ class CanvasModelTests(TestCase):
 
     def test_canvas_connection_belongs_to_user(self):
         self.assertEqual(self.connection.user, self.user)
+
+class CanvasSyncTests(TestCase):
+
+    def setUp(self):
+        User = get_user_model()
+
+        self.user = User.objects.create_user(
+            username="syncuser",
+            password="testpassword123",
+        )
+
+        self.connection = CanvasConnection.objects.create(
+            user=self.user,
+            canvas_base_url="https://example.instructure.com",
+            access_token="test-token",
+        )
+
+        self.client_api = CanvasAPIClient(
+            self.connection.canvas_base_url,
+            self.connection.access_token,
+        )
+
+    @patch.object(CanvasAPIClient, "get_course_assignments")
+    @patch.object(CanvasAPIClient, "get_active_courses")
+    def test_successful_sync(self, mock_courses, mock_assignments):
+        mock_courses.return_value = [
+            {
+                "id": 100,
+                "name": "Test Course",
+                "course_code": "TEST 101",
+                "term": {"name": "Fall 2026"},
+            }
+        ]
+
+        mock_assignments.return_value = [
+            {
+                "id": 200,
+                "name": "Test Assignment",
+                "description": "Assignment description",
+                "due_at": None,
+                "points_possible": 100,
+                "html_url": "https://example.com/assignment",
+                "rubric": [
+                    {
+                        "description": "Code Quality",
+                        "long_description": "Code should be readable.",
+                        "points": 20,
+                    }
+                ],
+            }
+        ]
+
+        self.client_api.sync_user_data(self.user)
+
+        self.assertEqual(Course.objects.filter(user=self.user).count(), 1)
+        self.assertEqual(Assignment.objects.count(), 1)
+        self.assertEqual(RubricCriterion.objects.count(), 1)
