@@ -35,6 +35,11 @@ class Course(models.Model):
 class Assignment(models.Model):
     """A Canvas assignment belonging to an imported course."""
 
+    class SyncStatus(models.TextChoices):
+        SUCCESS = 'success', 'Success'
+        FAILED = 'failed', 'Failed'
+        PENDING = 'pending', 'Pending'
+
     course = models.ForeignKey(
         Course,
         on_delete=models.CASCADE,
@@ -48,6 +53,12 @@ class Assignment(models.Model):
         max_digits=8, decimal_places=2, null=True, blank=True
     )
     submission_url = models.URLField(blank=True)
+    sync_status = models.CharField(
+        max_length=20,
+        choices=SyncStatus.choices,
+        default=SyncStatus.SUCCESS,
+    )
+    sync_error_message = models.TextField(blank=True)
     last_synchronized_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):

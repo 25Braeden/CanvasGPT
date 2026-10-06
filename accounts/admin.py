@@ -1,3 +1,24 @@
 from django.contrib import admin
+from django.contrib.auth.admin import UserAdmin
 
-# Register your models here.
+from .models import StudentProfile, User
+
+
+@admin.register(User)
+class CustomUserAdmin(UserAdmin):
+    pass
+
+
+@admin.register(StudentProfile)
+class StudentProfileAdmin(admin.ModelAdmin):
+    list_display = (
+        'user',
+        'timezone',
+        'preferred_session_minutes',
+        'break_minutes',
+        'daily_study_goal_minutes',
+        'notifications_enabled',
+        'dark_mode_enabled',
+    )
+    search_fields = ('user__username', 'user__email')
+    list_filter = ('notifications_enabled', 'dark_mode_enabled', 'timezone')

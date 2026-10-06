@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ assignment.title }} | CanvasGPT{% endblock %}
+
+{% block content %}
+<section class="content-card wide">
+    <p><a href="{% url 'dashboard' %}">← Back to dashboard</a></p>
+
+    <h1>{{ assignment.title }}</h1>
+
+    <div class="metadata-grid" aria-label="Assignment details">
+        <div class="metadata-item">
+            <span class="metadata-label">Course</span>
+            {{ assignment.course.name }}{% if assignment.course.course_code %} — {{ assignment.course.course_code }}{% endif %}
+        </div>
+        <div class="metadata-item">
+            <span class="metadata-label">Due date</span>
+            {% if assignment.due_at %}{{ assignment.due_at|date:"M j, Y, g:i A" }}{% else %}No due date provided{% endif %}
+        </div>
+        <div class="metadata-item">
+            <span class="metadata-label">Points possible</span>
+            {% if assignment.points_possible %}{{ assignment.points_possible }}{% else %}Not provided{% endif %}
+        </div>
+        <div class="metadata-item">
+            <span class="metadata-label">Submission</span>
+            {% if assignment.submission_url %}
+            <a href="{{ assignment.submission_url }}" target="_blank" rel="noopener noreferrer">Open in Canvas</a>
+            {% else %}
+            No submission link provided
+            {% endif %}
+        </div>
+    </div>
+
+    <h2>Description</h2>
+    <div class="description-block">
+        {% if assignment.description %}
+        {{ assignment.description|linebreaks }}
+        {% else %}
+        <p>No description was provided by Canvas.</p>
+        {% endif %}
+    </div>
+
+    <h2>Rubric criteria</h2>
+    {% if assignment.rubric_criteria.all %}
+    <ul class="rubric-list">
+        {% for criterion in assignment.rubric_criteria.all %}
+        <li class="rubric-item">
+            <strong>{{ criterion.title }}</strong>
+            {% if criterion.points %}<p>{{ criterion.points }} points</p>{% endif %}
+            {% if criterion.description %}{{ criterion.description|linebreaks }}{% else %}<p>No criterion description provided.</p>{% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p>No rubric criteria were synchronized for this assignment.</p>
+    {% endif %}
+</section>
+{% endblock %}
