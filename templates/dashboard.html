@@ -3,6 +3,7 @@
 {% block title %}Dashboard | CanvasGPT{% endblock %}
 
 {% block content %}
+<section class="content-card">
 <h1>Dashboard</h1>
 {% if is_new_user %}
 <p>Welcome, {{ user.username }}.</p>
@@ -10,4 +11,5 @@
 <p>Welcome back, {{ user.username }}.</p>
 {% endif %}
 <p>Your Canvas courses, assignments, and study plans will appear here.</p>
+</section>
 {% endblock %}

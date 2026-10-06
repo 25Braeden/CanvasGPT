@@ -3,6 +3,7 @@
 {% block title %}Sign up | CanvasGPT{% endblock %}
 
 {% block content %}
+<section class="content-card">
 <h1>Sign up</h1>
 <form method="post">
     {% csrf_token %}
@@ -10,4 +11,5 @@
     <button type="submit">Create account</button>
 </form>
 <p>Already have an account? <a href="{% url 'accounts:login' %}">Log in</a></p>
+</section>
 {% endblock %}
