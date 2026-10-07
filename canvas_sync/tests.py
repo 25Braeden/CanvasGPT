@@ -2,6 +2,7 @@ from unittest.mock import Mock, patch
 
 import requests
 from django.contrib.auth import get_user_model
+from django.db import IntegrityError, transaction
 from django.test import TestCase
 from django.urls import reverse
 
@@ -200,6 +201,34 @@ class CanvasSyncTests(TestCase):
             1,
         )
 
+    def test_canvas_ids_are_unique_per_parent_record(self):
+        course = Course.objects.create(
+            user=self.user,
+            canvas_course_id=12345,
+            name="Course",
+        )
+        Assignment.objects.create(
+            course=course,
+            canvas_assignment_id=67890,
+            title="Assignment",
+        )
+
+        with transaction.atomic():
+            with self.assertRaises(IntegrityError):
+                Course.objects.create(
+                    user=self.user,
+                    canvas_course_id=12345,
+                    name="Duplicate Course",
+                )
+
+        with transaction.atomic():
+            with self.assertRaises(IntegrityError):
+                Assignment.objects.create(
+                    course=course,
+                    canvas_assignment_id=67890,
+                    title="Duplicate Assignment",
+                )
+
     @patch.object(CanvasAPIClient, "get_active_courses")
     def test_invalid_credentials_raises_request_error(
         self,
@@ -298,6 +327,92 @@ class CanvasSyncTests(TestCase):
         )
         self.assertEqual(self.connection.sync_error_message, "")
         self.assertIsNotNone(self.connection.last_synchronized_at)
+
+    @patch.object(CanvasAPIClient, "get_course_assignments")
+    @patch.object(CanvasAPIClient, "get_active_courses")
+    def test_rubric_criterion_id_updates_renamed_criterion(
+        self,
+        mock_courses,
+        mock_assignments,
+    ):
+        mock_courses.return_value = self.sample_courses()
+        mock_assignments.return_value = [
+            {
+                **self.sample_assignments()[0],
+                "rubric": [
+                    {
+                        "id": 900,
+                        "description": "Original title",
+                        "long_description": "Original description",
+                        "points": 20,
+                    }
+                ],
+            }
+        ]
+        self.client_api.sync_user_data(self.user)
+        mock_assignments.return_value[0]["rubric"][0]["description"] = (
+            "Renamed title"
+        )
+
+        self.client_api.sync_user_data(self.user)
+
+        criteria = RubricCriterion.objects.filter(
+            assignment__canvas_assignment_id=200
+        )
+        self.assertEqual(criteria.count(), 1)
+        self.assertEqual(criteria.get().title, "Renamed title")
+        self.assertEqual(criteria.get().canvas_rubric_criterion_id, 900)
+
+    @patch.object(CanvasAPIClient, "get_course_assignments")
+    @patch.object(CanvasAPIClient, "get_active_courses")
+    def test_same_named_rubric_criteria_keep_distinct_canvas_ids(
+        self,
+        mock_courses,
+        mock_assignments,
+    ):
+        mock_courses.return_value = self.sample_courses()
+        mock_assignments.return_value = [
+            {
+                **self.sample_assignments()[0],
+                "rubric": [
+                    {"id": 900, "description": "Quality", "points": 10},
+                    {"id": 901, "description": "Quality", "points": 20},
+                ],
+            }
+        ]
+
+        self.client_api.sync_user_data(self.user)
+
+        criteria = RubricCriterion.objects.filter(
+            assignment__canvas_assignment_id=200
+        ).order_by("canvas_rubric_criterion_id")
+        self.assertEqual(criteria.count(), 2)
+        self.assertEqual(
+            list(criteria.values_list("canvas_rubric_criterion_id", flat=True)),
+            [900, 901],
+        )
+
+    @patch.object(CanvasAPIClient, "get_course_assignments")
+    @patch.object(CanvasAPIClient, "get_active_courses")
+    def test_network_failure_does_not_partially_import_data(
+        self,
+        mock_courses,
+        mock_assignments,
+    ):
+        existing_course = Course.objects.create(
+            user=self.user,
+            canvas_course_id=100,
+            name="Original course name",
+        )
+        mock_courses.return_value = self.sample_courses()
+        mock_assignments.side_effect = requests.ConnectionError()
+
+        with self.assertRaises(requests.RequestException):
+            self.client_api.sync_user_data(self.user)
+
+        existing_course.refresh_from_db()
+        self.assertEqual(existing_course.name, "Original course name")
+        self.assertTrue(existing_course.is_active)
 
     @patch.object(CanvasAPIClient, "get_active_courses")
     def test_failed_sync_sets_failure_status(
@@ -484,6 +599,49 @@ class CanvasSyncTests(TestCase):
         self.assertIsNone(
             self.client_api.session.get.call_args_list[1].kwargs["params"]
         )
+
+    def test_paginated_assignments_are_combined(self):
+        first_response = Mock()
+        first_response.json.return_value = [{"id": 200}]
+        first_response.links = {
+            "next": {
+                "url": (
+                    "https://example.instructure.com/api/v1/courses/100/"
+                    "assignments?page=2"
+                )
+            }
+        }
+        second_response = Mock()
+        second_response.json.return_value = [{"id": 201}]
+        second_response.links = {}
+        self.client_api.session.get = Mock(
+            side_effect=[first_response, second_response]
+        )
+
+        assignments = self.client_api.get_course_assignments(100)
+
+        self.assertEqual(assignments, [{"id": 200}, {"id": 201}])
+        self.assertEqual(self.client_api.session.get.call_count, 2)
+
+    @patch.object(CanvasAPIClient, "sync_user_data")
+    def test_sync_view_reports_success_and_supports_repeat_sync(self, mock_sync):
+        self.client.force_login(self.user)
+
+        first_response = self.client.post(
+            reverse("canvas_sync:sync"),
+            follow=True,
+        )
+        second_response = self.client.post(
+            reverse("canvas_sync:sync"),
+            follow=True,
+        )
+
+        self.assertEqual(first_response.status_code, 200)
+        self.assertEqual(second_response.status_code, 200)
+        self.assertContains(first_response, "Canvas data synced successfully.")
+        self.assertEqual(mock_sync.call_count, 2)
+        for call in mock_sync.call_args_list:
+            self.assertEqual(call.args, (self.user,))
 
     @patch.object(CanvasAPIClient, "sync_user_data")
     def test_sync_view_handles_malformed_response_error(self, mock_sync):

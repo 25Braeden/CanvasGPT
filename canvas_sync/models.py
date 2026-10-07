@@ -41,6 +41,14 @@ class Course(models.Model):
     is_active = models.BooleanField(default=True)
     is_visible = models.BooleanField(default=True)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("user", "canvas_course_id"),
+                name="unique_canvas_course_per_user",
+            ),
+        ]
+
     def __str__(self):
         return self.name
 
@@ -73,6 +81,15 @@ class Assignment(models.Model):
     )
     sync_error_message = models.TextField(blank=True)
     last_synchronized_at = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("course", "canvas_assignment_id"),
+                name="unique_canvas_assignment_per_course",
+            ),
+        ]
 
     def __str__(self):
         return self.title
@@ -91,6 +108,19 @@ class RubricCriterion(models.Model):
     points = models.DecimalField(
         max_digits=8, decimal_places=2, null=True, blank=True
     )
+    canvas_rubric_criterion_id = models.BigIntegerField(
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("assignment", "canvas_rubric_criterion_id"),
+                condition=models.Q(canvas_rubric_criterion_id__isnull=False),
+                name="unique_canvas_rubric_criterion_per_assignment",
+            ),
+        ]
 
     def __str__(self):
         return self.title

@@ -54,8 +54,9 @@ def profile(request):
         {
             'user_form': user_form,
             'profile_form': profile_form,
-            'courses': Course.objects.filter(user=request.user).order_by(
-                'name'
-            ),
+            'courses': Course.objects.filter(
+                user=request.user,
+                is_active=True,
+            ).order_by('name'),
         },
     )

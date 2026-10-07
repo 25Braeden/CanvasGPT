@@ -2,6 +2,7 @@ import requests
 from datetime import timedelta
 
 from django.contrib import messages
+from django.db import DatabaseError
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -80,7 +81,7 @@ def sync_canvas(request):
             "Canvas data synced successfully.",
         )
 
-    except (requests.RequestException, CanvasSyncError):
+    except (requests.RequestException, CanvasSyncError, DatabaseError):
         messages.error(
             request,
             "Canvas sync failed. Check your Canvas URL and access token.",

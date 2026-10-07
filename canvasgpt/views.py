@@ -26,7 +26,9 @@ def dashboard(request):
     assignments = [
         assignment
         for assignment in all_assignments
-        if assignment.course.is_visible
+        if assignment.course.is_active
+        and assignment.course.is_visible
+        and assignment.is_active
     ]
     profile, _ = StudentProfile.objects.get_or_create(user=request.user)
     due_soon, due_later, past_due = categorize_assignments(

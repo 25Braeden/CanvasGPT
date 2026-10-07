@@ -179,6 +179,37 @@ class ProfileTests(TestCase):
         self.assertTrue(visible_course.is_visible)
         self.assertFalse(hidden_course.is_visible)
 
+    def test_profile_cannot_change_another_users_course_visibility(self):
+        other_user = User.objects.create_user(
+            username='other-user',
+            password='StrongPass123!',
+        )
+        other_course = Course.objects.create(
+            user=other_user,
+            canvas_course_id=1,
+            name='Other user course',
+        )
+
+        response = self.client.post(
+            reverse('accounts:profile'),
+            {
+                'first_name': '',
+                'last_name': '',
+                'email': 'profile@example.com',
+                'timezone': 'UTC',
+                'preferred_session_minutes': 30,
+                'break_minutes': 5,
+                'daily_study_goal_minutes': 60,
+                'notifications_enabled': 'on',
+                'due_soon_days': 7,
+                'visible_course_ids': [str(other_course.pk)],
+            },
+        )
+
+        self.assertRedirects(response, reverse('accounts:profile'))
+        other_course.refresh_from_db()
+        self.assertTrue(other_course.is_visible)
+
     def test_invalid_preferences_are_rejected(self):
         response = self.client.post(
             reverse('accounts:profile'),
