@@ -15,6 +15,9 @@ from .services import CanvasAPIClient, CanvasSyncError
 
 
 STALE_AFTER = timedelta(hours=24)
+DEFAULT_ASSIGNMENT_SYNC_FAILURE_MESSAGE = (
+    "Canvas synchronization failed for this assignment."
+)
 
 
 @login_required
@@ -112,6 +115,16 @@ def assignment_detail(request, pk):
 
 
 def get_assignment_sync_status(assignment):
+    if assignment.sync_status == Assignment.SyncStatus.FAILED:
+        return {
+            "level": "error",
+            "label": "Sync failed",
+            "message": (
+                assignment.sync_error_message
+                or DEFAULT_ASSIGNMENT_SYNC_FAILURE_MESSAGE
+            ),
+        }
+
     if not assignment.last_synchronized_at:
         return {
             "level": "warning",

@@ -1,3 +1,4 @@
+from datetime import timedelta
 from unittest.mock import Mock, patch
 
 import requests
@@ -5,11 +6,13 @@ from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from canvasgpt.views import get_dashboard_sync_status
 
 from .models import Assignment, CanvasConnection, Course, RubricCriterion
 from .services import CanvasAPIClient, CanvasSyncError
+from .views import get_assignment_sync_status
 
 
 class CanvasModelTests(TestCase):
@@ -97,6 +100,67 @@ class CanvasModelTests(TestCase):
             self.connection.user,
             self.user,
         )
+
+
+class AssignmentSyncStatusTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user(
+            username="status-user",
+            password="testpassword123",
+        )
+        self.course = Course.objects.create(
+            user=self.user,
+            canvas_course_id=1,
+            name="Status Course",
+        )
+        self.assignment = Assignment.objects.create(
+            course=self.course,
+            canvas_assignment_id=1,
+            title="Status Assignment",
+        )
+
+    def test_recent_assignment_is_up_to_date(self):
+        status = get_assignment_sync_status(self.assignment)
+
+        self.assertEqual(status["level"], "success")
+        self.assertEqual(status["label"], "Up to date")
+
+    def test_stale_assignment_has_warning(self):
+        Assignment.objects.filter(pk=self.assignment.pk).update(
+            last_synchronized_at=timezone.now() - timedelta(hours=25)
+        )
+        self.assignment.refresh_from_db()
+
+        status = get_assignment_sync_status(self.assignment)
+
+        self.assertEqual(status["level"], "warning")
+        self.assertEqual(status["label"], "Sync may be stale")
+
+    def test_failed_assignment_uses_stored_error_message(self):
+        self.assignment.sync_status = Assignment.SyncStatus.FAILED
+        self.assignment.sync_error_message = "Canvas connection needs attention."
+        self.assignment.save()
+
+        status = get_assignment_sync_status(self.assignment)
+
+        self.assertEqual(status["level"], "error")
+        self.assertEqual(status["label"], "Sync failed")
+        self.assertEqual(
+            status["message"],
+            "Canvas connection needs attention.",
+        )
+
+    def test_assignment_without_timestamp_is_not_synced(self):
+        Assignment.objects.filter(pk=self.assignment.pk).update(
+            last_synchronized_at=None
+        )
+        self.assignment.refresh_from_db()
+
+        status = get_assignment_sync_status(self.assignment)
+
+        self.assertEqual(status["level"], "warning")
+        self.assertEqual(status["label"], "Not synced yet")
 
 
 class CanvasSyncTests(TestCase):
