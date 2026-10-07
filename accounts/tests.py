@@ -112,6 +112,7 @@ class ProfileTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Your profile')
         self.assertContains(response, 'Study preferences')
+        self.assertContains(response, reverse('dashboard'))
         self.assertContains(
             response,
             reverse('canvas_sync:connection'),
@@ -129,6 +130,7 @@ class ProfileTests(TestCase):
                 'break_minutes': 10,
                 'daily_study_goal_minutes': 90,
                 'notifications_enabled': 'on',
+                'due_soon_days': 14,
             },
         )
 
@@ -139,6 +141,7 @@ class ProfileTests(TestCase):
         self.assertEqual(self.user.email, 'updated@example.com')
         self.assertEqual(profile.timezone, 'America/New_York')
         self.assertEqual(profile.preferred_session_minutes, 45)
+        self.assertEqual(profile.due_soon_days, 14)
 
     def test_invalid_preferences_are_rejected(self):
         response = self.client.post(
@@ -152,6 +155,7 @@ class ProfileTests(TestCase):
                 'break_minutes': 5,
                 'daily_study_goal_minutes': 90,
                 'notifications_enabled': 'on',
+                'due_soon_days': 0,
             },
         )
 

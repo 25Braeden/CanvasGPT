@@ -160,6 +160,9 @@
         .metadata-label { display: block; margin-bottom: 0.35rem; color: var(--muted); font-size: 0.85rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; }
         .description-block { margin: 1.5rem 0; padding: 1rem; border: 1px solid var(--border); border-radius: 1rem; background: var(--input-bg); }
         .rubric-list, .assignment-list { display: grid; gap: 1rem; margin: 1rem 0 0; padding: 0; list-style: none; }
+        .assignment-section { margin: 1.5rem 0; padding: 1rem; border: 1px solid var(--border); border-radius: 1rem; background: var(--surface-translucent); }
+        .assignment-section summary { cursor: pointer; font-size: 1.15rem; font-weight: 800; }
+        .assignment-section summary span { color: var(--muted); font-size: 0.95rem; }
         .assignment-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
         .sync-status.success { border-color: #34a853; background: rgba(52, 168, 83, 0.14); }
         .sync-status.warning { border-color: #f4c46a; background: rgba(244, 196, 106, 0.18); }
@@ -181,6 +184,7 @@
             <nav class="nav-actions" aria-label="Primary navigation">
                 {% if user.is_authenticated %}
                     <span>Signed in as {{ user.username }}</span>
+                    <a class="button" href="{% url 'dashboard' %}">Dashboard</a>
                     <a class="button" href="{% url 'accounts:profile' %}">Profile</a>
                     <form method="post" action="{% url 'accounts:logout' %}">
                         {% csrf_token %}

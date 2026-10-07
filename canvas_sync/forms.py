@@ -4,8 +4,19 @@ from .models import CanvasConnection
 
 
 class CanvasConnectionForm(forms.ModelForm):
+    canvas_base_url = forms.URLField(
+        widget=forms.URLInput(
+            attrs={
+                "autocomplete": "off",
+                "placeholder": "https://your-school.instructure.com",
+            }
+        )
+    )
     access_token = forms.CharField(
-        widget=forms.PasswordInput(render_value=False),
+        widget=forms.PasswordInput(
+            render_value=False,
+            attrs={"autocomplete": "new-password"},
+        ),
         required=False,
         help_text="Leave blank to keep your current token.",
     )

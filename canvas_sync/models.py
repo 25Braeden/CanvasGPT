@@ -2,6 +2,11 @@ from django.conf import settings
 from django.db import models
 
 class CanvasConnection(models.Model):
+    class SyncStatus(models.TextChoices):
+        SUCCESS = 'success', 'Success'
+        FAILED = 'failed', 'Failed'
+        PENDING = 'pending', 'Pending'
+
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -9,6 +14,13 @@ class CanvasConnection(models.Model):
     )
     canvas_base_url = models.URLField()
     access_token = models.CharField(max_length=255)
+    sync_status = models.CharField(
+        max_length=20,
+        choices=SyncStatus.choices,
+        default=SyncStatus.PENDING,
+    )
+    sync_error_message = models.TextField(blank=True)
+    last_synchronized_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return f"{self.user.username}'s Canvas connection"

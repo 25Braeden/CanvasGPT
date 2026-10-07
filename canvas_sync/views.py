@@ -38,7 +38,10 @@ def canvas_connection(request):
 
             return redirect("canvas_sync:connection")
     else:
-        form = CanvasConnectionForm(instance=connection)
+        form = CanvasConnectionForm(
+            instance=connection,
+            initial={"canvas_base_url": ""},
+        )
 
     return render(
         request,

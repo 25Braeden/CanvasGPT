@@ -1,6 +1,10 @@
 import requests
+from django.utils import timezone
 
-from .models import Assignment, Course, RubricCriterion
+from .models import Assignment, CanvasConnection, Course, RubricCriterion
+
+
+SYNC_FAILURE_MESSAGE = "Canvas sync failed. Check your Canvas connection."
 
 
 class CanvasAPIClient:
@@ -103,14 +107,22 @@ class CanvasAPIClient:
                             },
                         )
 
+            CanvasConnection.objects.filter(user=user).update(
+                sync_status=CanvasConnection.SyncStatus.SUCCESS,
+                sync_error_message="",
+                last_synchronized_at=timezone.now(),
+            )
+
         except requests.RequestException:
             Assignment.objects.filter(
                 course__user=user
             ).update(
                 sync_status=Assignment.SyncStatus.FAILED,
-                sync_error_message=(
-                    "Canvas sync failed. Check your Canvas connection."
-                ),
+                sync_error_message=SYNC_FAILURE_MESSAGE,
+            )
+            CanvasConnection.objects.filter(user=user).update(
+                sync_status=CanvasConnection.SyncStatus.FAILED,
+                sync_error_message=SYNC_FAILURE_MESSAGE,
             )
 
             raise

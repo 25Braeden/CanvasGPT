@@ -3,6 +3,9 @@ from unittest.mock import patch
 import requests
 from django.contrib.auth import get_user_model
 from django.test import TestCase
+from django.urls import reverse
+
+from canvasgpt.views import get_dashboard_sync_status
 
 from .models import Assignment, CanvasConnection, Course, RubricCriterion
 from .services import CanvasAPIClient
@@ -252,6 +255,18 @@ class CanvasSyncTests(TestCase):
             0,
         )
 
+    def test_connection_form_does_not_prefill_saved_credentials(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("canvas_sync:connection"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.context["form"]["canvas_base_url"].value(),
+            "",
+        )
+        self.assertNotContains(response, self.connection.access_token)
+
     @patch.object(CanvasAPIClient, "get_course_assignments")
     @patch.object(CanvasAPIClient, "get_active_courses")
     def test_successful_sync_sets_success_status(
@@ -276,6 +291,13 @@ class CanvasSyncTests(TestCase):
             assignment.sync_error_message,
             "",
         )
+        self.connection.refresh_from_db()
+        self.assertEqual(
+            self.connection.sync_status,
+            CanvasConnection.SyncStatus.SUCCESS,
+        )
+        self.assertEqual(self.connection.sync_error_message, "")
+        self.assertIsNotNone(self.connection.last_synchronized_at)
 
     @patch.object(CanvasAPIClient, "get_active_courses")
     def test_failed_sync_sets_failure_status(
@@ -323,3 +345,29 @@ class CanvasSyncTests(TestCase):
             self.connection.access_token,
             assignment.sync_error_message,
         )
+        self.connection.refresh_from_db()
+        self.assertEqual(
+            self.connection.sync_status,
+            CanvasConnection.SyncStatus.FAILED,
+        )
+        self.assertEqual(
+            self.connection.sync_error_message,
+            "Canvas sync failed. Check your Canvas connection.",
+        )
+
+    @patch.object(CanvasAPIClient, "get_active_courses")
+    def test_first_sync_failure_has_dashboard_error_state(
+        self,
+        mock_courses,
+    ):
+        mock_courses.side_effect = requests.ConnectionError()
+
+        with self.assertRaises(requests.RequestException):
+            self.client_api.sync_user_data(self.user)
+
+        self.connection.refresh_from_db()
+        sync_status = get_dashboard_sync_status([], self.connection)
+
+        self.assertEqual(sync_status["level"], "error")
+        self.assertEqual(sync_status["label"], "Sync failed")
+        self.assertNotIn(self.connection.access_token, sync_status["message"])

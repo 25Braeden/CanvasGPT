@@ -1,10 +1,12 @@
 from datetime import timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from django.utils import timezone
 
-from canvas_sync.models import Assignment
+from accounts.models import StudentProfile
+from canvas_sync.models import Assignment, CanvasConnection
 
 STALE_AFTER = timedelta(hours=24)
 
@@ -16,26 +18,82 @@ def home(request):
 @login_required
 def dashboard(request):
     is_new_user = request.session.pop('new_user', False)
-    assignments = (
+    assignments = list(
         Assignment.objects.select_related('course')
         .filter(course__user=request.user)
         .order_by('due_at', 'course__name', 'title')
     )
-    sync_status = get_dashboard_sync_status(assignments)
+    profile, _ = StudentProfile.objects.get_or_create(user=request.user)
+    due_soon, due_later, past_due = categorize_assignments(
+        assignments,
+        profile,
+    )
+    connection = CanvasConnection.objects.filter(user=request.user).first()
+    sync_status = get_dashboard_sync_status(assignments, connection)
     return render(
         request,
         'dashboard.html',
         {
             'is_new_user': is_new_user,
             'assignments': assignments,
+            'due_soon_assignments': due_soon,
+            'due_later_assignments': due_later,
+            'past_due_assignments': past_due,
+            'due_soon_days': profile.due_soon_days,
             'sync_status': sync_status,
         },
     )
 
 
-def get_dashboard_sync_status(assignments):
+def categorize_assignments(assignments, profile):
+    try:
+        student_timezone = ZoneInfo(profile.timezone)
+    except ZoneInfoNotFoundError:
+        student_timezone = timezone.get_current_timezone()
+
+    today = timezone.localdate(timezone=student_timezone)
+    due_soon_end = today + timedelta(days=profile.due_soon_days)
+    due_soon = []
+    due_later = []
+    past_due = []
+
+    for assignment in assignments:
+        if assignment.due_at is None:
+            due_later.append(assignment)
+            continue
+
+        due_date = timezone.localtime(
+            assignment.due_at,
+            student_timezone,
+        ).date()
+        if due_date < today:
+            past_due.append(assignment)
+        elif due_date <= due_soon_end:
+            due_soon.append(assignment)
+        else:
+            due_later.append(assignment)
+
+    return due_soon, due_later, past_due
+
+
+def get_dashboard_sync_status(assignments, connection=None):
     assignment_list = list(assignments)
+
+    if connection and connection.sync_status == CanvasConnection.SyncStatus.FAILED:
+        return {
+            'level': 'error',
+            'label': 'Sync failed',
+            'message': connection.sync_error_message or 'Canvas synchronization failed. Check your Canvas connection.',
+        }
+
     if not assignment_list:
+        if connection and connection.sync_status == CanvasConnection.SyncStatus.SUCCESS:
+            return {
+                'level': 'success',
+                'label': 'Up to date',
+                'message': 'Canvas data was recently synchronized. No active assignments were found.',
+                'last_synced': connection.last_synchronized_at,
+            }
         return {
             'level': 'warning',
             'label': 'No synced assignments yet',

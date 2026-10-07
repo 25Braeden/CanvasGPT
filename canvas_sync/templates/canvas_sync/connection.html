@@ -15,7 +15,7 @@
         {% endfor %}
     {% endif %}
 
-    <form method="post">
+    <form method="post" autocomplete="off">
         {% csrf_token %}
         {{ form.as_p }}
         <button class="primary" type="submit">Save Canvas connection</button>

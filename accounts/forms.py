@@ -26,4 +26,5 @@ class StudentProfileForm(forms.ModelForm):
             'daily_study_goal_minutes',
             'notifications_enabled',
             'dark_mode_enabled',
+            'due_soon_days',
         )
