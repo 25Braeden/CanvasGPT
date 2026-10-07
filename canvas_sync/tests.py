@@ -53,25 +53,46 @@ class CanvasModelTests(TestCase):
         )
 
     def test_course_string(self):
-        self.assertEqual(str(self.course), "Software Engineering")
+        self.assertEqual(
+            str(self.course),
+            "Software Engineering",
+        )
 
     def test_assignment_string(self):
-        self.assertEqual(str(self.assignment), "Project 1")
+        self.assertEqual(
+            str(self.assignment),
+            "Project 1",
+        )
 
     def test_rubric_criterion_string(self):
-        self.assertEqual(str(self.criterion), "Code Quality")
+        self.assertEqual(
+            str(self.criterion),
+            "Code Quality",
+        )
 
     def test_course_belongs_to_user(self):
-        self.assertEqual(self.course.user, self.user)
+        self.assertEqual(
+            self.course.user,
+            self.user,
+        )
 
     def test_assignment_belongs_to_course(self):
-        self.assertEqual(self.assignment.course, self.course)
+        self.assertEqual(
+            self.assignment.course,
+            self.course,
+        )
 
     def test_rubric_belongs_to_assignment(self):
-        self.assertEqual(self.criterion.assignment, self.assignment)
+        self.assertEqual(
+            self.criterion.assignment,
+            self.assignment,
+        )
 
     def test_canvas_connection_belongs_to_user(self):
-        self.assertEqual(self.connection.user, self.user)
+        self.assertEqual(
+            self.connection.user,
+            self.user,
+        )
 
 
 class CanvasSyncTests(TestCase):
@@ -94,23 +115,20 @@ class CanvasSyncTests(TestCase):
             self.connection.access_token,
         )
 
-    @patch.object(CanvasAPIClient, "get_course_assignments")
-    @patch.object(CanvasAPIClient, "get_active_courses")
-    def test_successful_sync(
-        self,
-        mock_courses,
-        mock_assignments,
-    ):
-        mock_courses.return_value = [
+    def sample_courses(self):
+        return [
             {
                 "id": 100,
                 "name": "Test Course",
                 "course_code": "TEST 101",
-                "term": {"name": "Fall 2026"},
+                "term": {
+                    "name": "Fall 2026",
+                },
             }
         ]
 
-        mock_assignments.return_value = [
+    def sample_assignments(self):
+        return [
             {
                 "id": 200,
                 "name": "Test Assignment",
@@ -128,14 +146,30 @@ class CanvasSyncTests(TestCase):
             }
         ]
 
+    @patch.object(CanvasAPIClient, "get_course_assignments")
+    @patch.object(CanvasAPIClient, "get_active_courses")
+    def test_successful_sync(
+        self,
+        mock_courses,
+        mock_assignments,
+    ):
+        mock_courses.return_value = self.sample_courses()
+        mock_assignments.return_value = self.sample_assignments()
+
         self.client_api.sync_user_data(self.user)
 
         self.assertEqual(
             Course.objects.filter(user=self.user).count(),
             1,
         )
-        self.assertEqual(Assignment.objects.count(), 1)
-        self.assertEqual(RubricCriterion.objects.count(), 1)
+        self.assertEqual(
+            Assignment.objects.count(),
+            1,
+        )
+        self.assertEqual(
+            RubricCriterion.objects.count(),
+            1,
+        )
 
     @patch.object(CanvasAPIClient, "get_course_assignments")
     @patch.object(CanvasAPIClient, "get_active_courses")
@@ -144,32 +178,8 @@ class CanvasSyncTests(TestCase):
         mock_courses,
         mock_assignments,
     ):
-        mock_courses.return_value = [
-            {
-                "id": 100,
-                "name": "Test Course",
-                "course_code": "TEST 101",
-                "term": {"name": "Fall 2026"},
-            }
-        ]
-
-        mock_assignments.return_value = [
-            {
-                "id": 200,
-                "name": "Test Assignment",
-                "description": "Assignment description",
-                "due_at": None,
-                "points_possible": 100,
-                "html_url": "https://example.com/assignment",
-                "rubric": [
-                    {
-                        "description": "Code Quality",
-                        "long_description": "Code should be readable.",
-                        "points": 20,
-                    }
-                ],
-            }
-        ]
+        mock_courses.return_value = self.sample_courses()
+        mock_assignments.return_value = self.sample_assignments()
 
         self.client_api.sync_user_data(self.user)
         self.client_api.sync_user_data(self.user)
@@ -178,8 +188,14 @@ class CanvasSyncTests(TestCase):
             Course.objects.filter(user=self.user).count(),
             1,
         )
-        self.assertEqual(Assignment.objects.count(), 1)
-        self.assertEqual(RubricCriterion.objects.count(), 1)
+        self.assertEqual(
+            Assignment.objects.count(),
+            1,
+        )
+        self.assertEqual(
+            RubricCriterion.objects.count(),
+            1,
+        )
 
     @patch.object(CanvasAPIClient, "get_active_courses")
     def test_invalid_credentials_raises_request_error(
@@ -212,7 +228,9 @@ class CanvasSyncTests(TestCase):
                 "id": 300,
                 "name": "Other User Course",
                 "course_code": "OTHER 101",
-                "term": {"name": "Fall 2026"},
+                "term": {
+                    "name": "Fall 2026",
+                },
             }
         ]
 
@@ -232,4 +250,76 @@ class CanvasSyncTests(TestCase):
         self.assertEqual(
             Course.objects.filter(user=self.user).count(),
             0,
+        )
+
+    @patch.object(CanvasAPIClient, "get_course_assignments")
+    @patch.object(CanvasAPIClient, "get_active_courses")
+    def test_successful_sync_sets_success_status(
+        self,
+        mock_courses,
+        mock_assignments,
+    ):
+        mock_courses.return_value = self.sample_courses()
+        mock_assignments.return_value = self.sample_assignments()
+
+        self.client_api.sync_user_data(self.user)
+
+        assignment = Assignment.objects.get(
+            canvas_assignment_id=200
+        )
+
+        self.assertEqual(
+            assignment.sync_status,
+            Assignment.SyncStatus.SUCCESS,
+        )
+        self.assertEqual(
+            assignment.sync_error_message,
+            "",
+        )
+
+    @patch.object(CanvasAPIClient, "get_active_courses")
+    def test_failed_sync_sets_failure_status(
+        self,
+        mock_courses,
+    ):
+        course = Course.objects.create(
+            user=self.user,
+            canvas_course_id=400,
+            name="Existing Course",
+            course_code="TEST 400",
+            term="Fall 2026",
+        )
+
+        assignment = Assignment.objects.create(
+            course=course,
+            canvas_assignment_id=500,
+            title="Existing Assignment",
+            description="Existing assignment",
+            points_possible=100,
+            sync_status=Assignment.SyncStatus.SUCCESS,
+            sync_error_message="",
+        )
+
+        mock_courses.side_effect = requests.RequestException(
+            "Private API failure details"
+        )
+
+        with self.assertRaises(requests.RequestException):
+            self.client_api.sync_user_data(self.user)
+
+        assignment.refresh_from_db()
+
+        self.assertEqual(
+            assignment.sync_status,
+            Assignment.SyncStatus.FAILED,
+        )
+
+        self.assertEqual(
+            assignment.sync_error_message,
+            "Canvas sync failed. Check your Canvas connection.",
+        )
+
+        self.assertNotIn(
+            self.connection.access_token,
+            assignment.sync_error_message,
         )

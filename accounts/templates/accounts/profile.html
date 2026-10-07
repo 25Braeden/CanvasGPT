@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+
+{% block title %}Profile | CanvasGPT{% endblock %}
+
+{% block content %}
+<section class="content-card">
+<h1>Your profile</h1>
+<form method="post">
+    {% csrf_token %}
+
+    <fieldset>
+        <legend>Account details</legend>
+        {{ user_form.as_p }}
+    </fieldset>
+
+    <fieldset>
+        <legend>Study preferences</legend>
+        {{ profile_form.as_p }}
+    </fieldset>
+
+    <button class="primary" type="submit">Save changes</button>
+</form>
+</section>
+{% endblock %}

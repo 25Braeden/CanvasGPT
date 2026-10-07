@@ -1,0 +1,48 @@
+<style>
+    .task-list { display: grid; gap: 0.75rem; margin: 1rem 0; padding: 0; list-style: none; }
+    .task-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.85rem 1rem; border: 1px solid var(--border); border-radius: 1rem; background: var(--surface-translucent); }
+    .task-row.completed { opacity: 0.65; border-style: dashed; }
+    .task-row.completed .task-description { text-decoration: line-through; }
+    .task-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .task-actions form { margin: 0; }
+    .task-meta { color: var(--muted); font-size: 0.9rem; }
+</style>
+<h2>Checklist</h2>
+{% if task_items %}
+<ol class="task-list">
+    {% for task in task_items %}
+    <li class="task-row{% if task.is_completed %} completed{% endif %}">
+        <div>
+            <span class="task-description">{{ task.description }}</span>
+            <div class="task-meta">
+                {{ task.estimated_minutes }} min · {% if task.is_completed %}Completed{% else %}To do{% endif %}
+            </div>
+        </div>
+        <div class="task-actions">
+            <form method="post" action="{% url 'ai_assistant:task_toggle' task.pk %}">{% csrf_token %}
+                <button type="submit">{% if task.is_completed %}Mark incomplete{% else %}Mark complete{% endif %}</button>
+            </form>
+            <form method="post" action="{% url 'ai_assistant:task_move' task.pk 'up' %}">{% csrf_token %}
+                <button type="submit" aria-label="Move up"{% if forloop.first %} disabled{% endif %}>↑</button>
+            </form>
+            <form method="post" action="{% url 'ai_assistant:task_move' task.pk 'down' %}">{% csrf_token %}
+                <button type="submit" aria-label="Move down"{% if forloop.last %} disabled{% endif %}>↓</button>
+            </form>
+            <a class="button" href="{% url 'ai_assistant:task_edit' task.pk %}">Edit</a>
+            <form method="post" action="{% url 'ai_assistant:task_delete' task.pk %}">{% csrf_token %}
+                <button type="submit">Delete</button>
+            </form>
+        </div>
+    </li>
+    {% endfor %}
+</ol>
+{% else %}
+<p>No tasks yet. Add your first one below.</p>
+{% endif %}
+
+<h3>Add a task</h3>
+<form method="post" action="{% url 'ai_assistant:task_add' assignment.pk %}">
+    {% csrf_token %}
+    {{ task_form.as_p }}
+    <button type="submit">Add task</button>
+</form>
