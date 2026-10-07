@@ -80,7 +80,11 @@ class Assignment(models.Model):
         default=SyncStatus.SUCCESS,
     )
     sync_error_message = models.TextField(blank=True)
-    last_synchronized_at = models.DateTimeField(auto_now=True)
+    last_synchronized_at = models.DateTimeField(
+        auto_now=True,
+        null=True,
+        blank=True,
+    )
     is_active = models.BooleanField(default=True)
 
     class Meta:
