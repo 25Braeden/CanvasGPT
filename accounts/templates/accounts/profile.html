@@ -20,5 +20,11 @@
 
     <button class="primary" type="submit">Save changes</button>
 </form>
+
+<section class="section-divider" aria-labelledby="canvas-connection-heading">
+    <h2 id="canvas-connection-heading">Canvas connection</h2>
+    <p>Manage the Canvas account used to import your courses and assignments.</p>
+    <a class="button" href="{% url 'canvas_sync:connection' %}">Manage Canvas connection</a>
+</section>
 </section>
 {% endblock %}

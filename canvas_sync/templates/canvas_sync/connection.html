@@ -1,35 +1,35 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Canvas Connection</title>
-</head>
-<body>
-    <h1>Canvas Connection</h1>
+{% extends 'base.html' %}
+
+{% block title %}Canvas Connection | CanvasGPT{% endblock %}
+
+{% block content %}
+<section class="content-card">
+    <p><a href="{% url 'accounts:profile' %}">← Back to profile</a></p>
+    <h1>Canvas connection</h1>
+    <p>Connect Canvas to import your active courses, assignments, and rubrics.</p>
+    <p>For the Canvas base URL, use your school&apos;s Canvas home address, for example <code>https://your-school.instructure.com</code>. Do not include <code>/api/v1</code> or a course or assignment path.</p>
 
     {% if messages %}
         {% for message in messages %}
-            <p>{{ message }}</p>
+            <p role="status">{{ message }}</p>
         {% endfor %}
     {% endif %}
 
     <form method="post">
         {% csrf_token %}
         {{ form.as_p }}
-
-        <button type="submit">
-            Save Canvas Connection
-        </button>
+        <button class="primary" type="submit">Save Canvas connection</button>
     </form>
 
-   {% if connection %}
-    <p>Canvas connection is saved.</p>
-
-    <form method="post" action="{% url 'canvas_sync:sync' %}">
-        {% csrf_token %}
-        <button type="submit">
-            Sync Canvas
-        </button>
-    </form>
-{% endif %}
-</body>
-</html>
+    {% if connection %}
+        <section class="section-divider" aria-labelledby="sync-canvas-heading">
+            <h2 id="sync-canvas-heading">Sync Canvas</h2>
+            <p>Your Canvas connection is saved. Sync to import the latest course and assignment data.</p>
+            <form method="post" action="{% url 'canvas_sync:sync' %}">
+                {% csrf_token %}
+                <button type="submit">Sync Canvas</button>
+            </form>
+        </section>
+    {% endif %}
+</section>
+{% endblock %}

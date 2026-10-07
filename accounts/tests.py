@@ -112,6 +112,10 @@ class ProfileTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Your profile')
         self.assertContains(response, 'Study preferences')
+        self.assertContains(
+            response,
+            reverse('canvas_sync:connection'),
+        )
 
     def test_profile_updates_account_and_preferences(self):
         response = self.client.post(
