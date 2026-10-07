@@ -163,6 +163,146 @@ class AssignmentSyncStatusTests(TestCase):
         self.assertEqual(status["label"], "Not synced yet")
 
 
+class AssignmentDetailPageTests(TestCase):
+    fixtures = ["assignment_detail.json"]
+
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.get(pk=9001)
+        self.assignment = Assignment.objects.get(pk=9001)
+        self.client.force_login(self.user)
+
+    def detail_url(self):
+        return reverse(
+            "canvas_sync:assignment_detail",
+            args=[self.assignment.pk],
+        )
+
+    def test_displays_fixture_backed_synchronized_assignment_details(self):
+        response = self.client.get(self.detail_url())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Canvas Integration Project")
+        self.assertContains(response, "Software Engineering — CSC 3400")
+        self.assertContains(
+            response,
+            "Build and document a Canvas API integration.",
+        )
+        self.assertContains(response, "Oct 15, 2026, 11:59 PM")
+        self.assertContains(response, "100.00")
+        self.assertContains(
+            response,
+            "https://example.instructure.com/courses/50001/assignments/60001",
+        )
+        self.assertContains(response, "Implementation quality")
+        self.assertContains(response, "Documentation")
+
+    def test_displays_no_due_date_fallback(self):
+        Assignment.objects.filter(pk=self.assignment.pk).update(due_at=None)
+
+        response = self.client.get(self.detail_url())
+
+        self.assertContains(response, "No due date provided")
+
+    def test_displays_no_rubric_fallback(self):
+        self.assignment.rubric_criteria.all().delete()
+
+        response = self.client.get(self.detail_url())
+
+        self.assertContains(
+            response,
+            "No rubric criteria were synchronized for this assignment.",
+        )
+
+    def test_displays_recent_sync_status(self):
+        Assignment.objects.filter(pk=self.assignment.pk).update(
+            sync_status=Assignment.SyncStatus.SUCCESS,
+            sync_error_message="",
+            last_synchronized_at=timezone.now(),
+        )
+
+        response = self.client.get(self.detail_url())
+
+        self.assertEqual(
+            response.context["assignment_sync_status"]["label"],
+            "Up to date",
+        )
+        self.assertContains(response, "Canvas sync: Up to date")
+
+    def test_displays_stale_sync_status(self):
+        Assignment.objects.filter(pk=self.assignment.pk).update(
+            sync_status=Assignment.SyncStatus.SUCCESS,
+            last_synchronized_at=timezone.now() - timedelta(hours=25),
+        )
+
+        response = self.client.get(self.detail_url())
+
+        self.assertEqual(
+            response.context["assignment_sync_status"]["label"],
+            "Sync may be stale",
+        )
+        self.assertContains(response, "Canvas sync: Sync may be stale")
+
+    def test_displays_failed_sync_status_and_safe_error(self):
+        CanvasConnection.objects.create(
+            user=self.user,
+            canvas_base_url="https://example.instructure.com",
+            access_token="canvas-token-secret",
+        )
+        Assignment.objects.filter(pk=self.assignment.pk).update(
+            sync_status=Assignment.SyncStatus.FAILED,
+            sync_error_message="Canvas sync failed. Check your Canvas connection.",
+        )
+
+        response = self.client.get(self.detail_url())
+
+        self.assertEqual(
+            response.context["assignment_sync_status"]["label"],
+            "Sync failed",
+        )
+        self.assertContains(
+            response,
+            "Canvas sync failed. Check your Canvas connection.",
+        )
+        self.assertNotContains(response, "canvas-token-secret")
+
+    def test_displays_missing_timestamp_status(self):
+        Assignment.objects.filter(pk=self.assignment.pk).update(
+            sync_status=Assignment.SyncStatus.SUCCESS,
+            last_synchronized_at=None,
+        )
+
+        response = self.client.get(self.detail_url())
+
+        self.assertEqual(
+            response.context["assignment_sync_status"]["label"],
+            "Not synced yet",
+        )
+        self.assertContains(response, "Canvas sync: Not synced yet")
+
+    def test_logged_out_user_is_redirected_to_login(self):
+        self.client.logout()
+
+        response = self.client.get(self.detail_url())
+
+        self.assertRedirects(
+            response,
+            f'{reverse("accounts:login")}?next={self.detail_url()}',
+        )
+
+    def test_user_cannot_access_another_users_assignment(self):
+        User = get_user_model()
+        other_user = User.objects.create_user(
+            username="other-student",
+            password="testpassword123",
+        )
+        self.client.force_login(other_user)
+
+        response = self.client.get(self.detail_url())
+
+        self.assertEqual(response.status_code, 404)
+
+
 class CanvasSyncTests(TestCase):
     def setUp(self):
         User = get_user_model()

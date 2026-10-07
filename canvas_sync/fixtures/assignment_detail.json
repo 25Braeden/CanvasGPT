@@ -1,0 +1,86 @@
+[
+  {
+    "model": "accounts.user",
+    "pk": 9001,
+    "fields": {
+      "password": "!",
+      "last_login": null,
+      "is_superuser": false,
+      "username": "fixture-student",
+      "first_name": "Fixture",
+      "last_name": "Student",
+      "email": "fixture-student@example.com",
+      "is_staff": false,
+      "is_active": true,
+      "date_joined": "2026-10-07T18:00:00Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "accounts.studentprofile",
+    "pk": 9001,
+    "fields": {
+      "user": 9001,
+      "timezone": "UTC",
+      "preferred_session_minutes": 30,
+      "break_minutes": 5,
+      "daily_study_goal_minutes": 60,
+      "notifications_enabled": true,
+      "dark_mode_enabled": false,
+      "due_soon_days": 7
+    }
+  },
+  {
+    "model": "canvas_sync.course",
+    "pk": 9001,
+    "fields": {
+      "user": 9001,
+      "canvas_course_id": 50001,
+      "name": "Software Engineering",
+      "course_code": "CSC 3400",
+      "term": "Fall 2026",
+      "is_active": true,
+      "is_visible": true
+    }
+  },
+  {
+    "model": "canvas_sync.assignment",
+    "pk": 9001,
+    "fields": {
+      "course": 9001,
+      "canvas_assignment_id": 60001,
+      "title": "Canvas Integration Project",
+      "description": "Build and document a Canvas API integration.",
+      "due_at": "2026-10-15T23:59:00Z",
+      "points_possible": "100.00",
+      "submission_url": "https://example.instructure.com/courses/50001/assignments/60001",
+      "sync_status": "success",
+      "sync_error_message": "",
+      "last_synchronized_at": "2026-10-07T18:00:00Z",
+      "is_active": true
+    }
+  },
+  {
+    "model": "canvas_sync.rubriccriterion",
+    "pk": 9001,
+    "fields": {
+      "assignment": 9001,
+      "title": "Implementation quality",
+      "description": "The integration handles valid Canvas API responses.",
+      "points": "60.00",
+      "canvas_rubric_criterion_id": 70001
+    }
+  },
+  {
+    "model": "canvas_sync.rubriccriterion",
+    "pk": 9002,
+    "fields": {
+      "assignment": 9001,
+      "title": "Documentation",
+      "description": "Setup and usage instructions are complete.",
+      "points": "40.00",
+      "canvas_rubric_criterion_id": 70002
+    }
+  }
+]
