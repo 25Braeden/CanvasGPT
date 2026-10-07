@@ -10,7 +10,7 @@ from ai_assistant.forms import TaskItemForm
 
 from .forms import CanvasConnectionForm
 from .models import Assignment, CanvasConnection
-from .services import CanvasAPIClient
+from .services import CanvasAPIClient, CanvasSyncError
 
 
 STALE_AFTER = timedelta(hours=24)
@@ -80,7 +80,7 @@ def sync_canvas(request):
             "Canvas data synced successfully.",
         )
 
-    except requests.RequestException:
+    except (requests.RequestException, CanvasSyncError):
         messages.error(
             request,
             "Canvas sync failed. Check your Canvas URL and access token.",

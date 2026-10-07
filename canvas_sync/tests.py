@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import requests
 from django.contrib.auth import get_user_model
@@ -8,7 +8,7 @@ from django.urls import reverse
 from canvasgpt.views import get_dashboard_sync_status
 
 from .models import Assignment, CanvasConnection, Course, RubricCriterion
-from .services import CanvasAPIClient
+from .services import CanvasAPIClient, CanvasSyncError
 
 
 class CanvasModelTests(TestCase):
@@ -371,3 +371,106 @@ class CanvasSyncTests(TestCase):
         self.assertEqual(sync_status["level"], "error")
         self.assertEqual(sync_status["label"], "Sync failed")
         self.assertNotIn(self.connection.access_token, sync_status["message"])
+
+    @patch.object(CanvasAPIClient, "get_active_courses")
+    def test_malformed_courses_response_sets_failure_status(
+        self,
+        mock_courses,
+    ):
+        mock_courses.return_value = {"id": 100}
+
+        with self.assertRaises(CanvasSyncError):
+            self.client_api.sync_user_data(self.user)
+
+        self.connection.refresh_from_db()
+        self.assertEqual(
+            self.connection.sync_status,
+            CanvasConnection.SyncStatus.FAILED,
+        )
+        self.assertEqual(
+            self.connection.sync_error_message,
+            "Canvas sync failed. Check your Canvas connection.",
+        )
+
+    @patch.object(CanvasAPIClient, "get_course_assignments")
+    @patch.object(CanvasAPIClient, "get_active_courses")
+    def test_missing_assignment_id_sets_failure_status(
+        self,
+        mock_courses,
+        mock_assignments,
+    ):
+        mock_courses.return_value = self.sample_courses()
+        mock_assignments.return_value = [{"name": "Missing ID"}]
+
+        with self.assertRaises(CanvasSyncError):
+            self.client_api.sync_user_data(self.user)
+
+        self.connection.refresh_from_db()
+        self.assertEqual(
+            self.connection.sync_status,
+            CanvasConnection.SyncStatus.FAILED,
+        )
+
+    @patch.object(CanvasAPIClient, "get_course_assignments")
+    @patch.object(CanvasAPIClient, "get_active_courses")
+    def test_null_optional_canvas_values_are_imported_safely(
+        self,
+        mock_courses,
+        mock_assignments,
+    ):
+        mock_courses.return_value = [
+            {
+                "id": 100,
+                "name": "Test Course",
+                "course_code": None,
+                "term": None,
+            }
+        ]
+        mock_assignments.return_value = [
+            {
+                "id": 200,
+                "name": "Test Assignment",
+                "description": None,
+                "due_at": None,
+                "points_possible": None,
+                "html_url": None,
+                "rubric": None,
+            }
+        ]
+
+        self.client_api.sync_user_data(self.user)
+
+        course = Course.objects.get(user=self.user, canvas_course_id=100)
+        assignment = Assignment.objects.get(
+            course=course,
+            canvas_assignment_id=200,
+        )
+        self.assertEqual(course.term, "")
+        self.assertEqual(course.course_code, "")
+        self.assertEqual(assignment.description, "")
+        self.assertEqual(assignment.submission_url, "")
+
+    def test_invalid_json_raises_safe_sync_error(self):
+        response = Mock()
+        response.json.side_effect = ValueError("not JSON")
+        self.client_api.session.get = Mock(return_value=response)
+
+        with self.assertRaises(CanvasSyncError):
+            self.client_api.get("courses")
+
+    @patch.object(CanvasAPIClient, "sync_user_data")
+    def test_sync_view_handles_malformed_response_error(self, mock_sync):
+        mock_sync.side_effect = CanvasSyncError("private response details")
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("canvas_sync:sync"),
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "Canvas sync failed. Check your Canvas URL and access token.",
+        )
+        self.assertNotContains(response, "private response details")
