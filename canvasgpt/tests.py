@@ -70,3 +70,27 @@ class DashboardAssignmentSectionsTests(TestCase):
             html=False,
         )
         self.assertContains(response, "<details", html=False)
+
+    def test_dashboard_excludes_assignments_from_hidden_courses(self):
+        hidden_course = Course.objects.create(
+            user=self.user,
+            canvas_course_id=2,
+            name="Hidden Course",
+            is_visible=False,
+        )
+        hidden_assignment = Assignment.objects.create(
+            course=hidden_course,
+            canvas_assignment_id=2,
+            title="Hidden assignment",
+            due_at=timezone.now() + timedelta(days=1),
+        )
+
+        response = self.client.get(reverse("dashboard"))
+
+        displayed_assignments = (
+            list(response.context["due_soon_assignments"])
+            + list(response.context["due_later_assignments"])
+            + list(response.context["past_due_assignments"])
+        )
+        self.assertNotIn(hidden_assignment, displayed_assignments)
+        self.assertNotContains(response, hidden_assignment.title)

@@ -3,6 +3,8 @@ from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.shortcuts import redirect, render
 
+from canvas_sync.models import Course
+
 from .forms import SignUpForm, StudentProfileForm, UserDetailsForm
 from .models import StudentProfile
 
@@ -32,9 +34,15 @@ def profile(request):
         user_form = UserDetailsForm(request.POST, instance=request.user)
         profile_form = StudentProfileForm(request.POST, instance=student_profile)
         if user_form.is_valid() and profile_form.is_valid():
+            visible_course_ids = request.POST.getlist("visible_course_ids")
             with transaction.atomic():
                 user_form.save()
                 profile_form.save()
+                courses = Course.objects.filter(user=request.user)
+                courses.update(is_visible=False)
+                courses.filter(pk__in=visible_course_ids).update(
+                    is_visible=True
+                )
             return redirect('accounts:profile')
     else:
         user_form = UserDetailsForm(instance=request.user)
@@ -43,5 +51,11 @@ def profile(request):
     return render(
         request,
         'accounts/profile.html',
-        {'user_form': user_form, 'profile_form': profile_form},
+        {
+            'user_form': user_form,
+            'profile_form': profile_form,
+            'courses': Course.objects.filter(user=request.user).order_by(
+                'name'
+            ),
+        },
     )

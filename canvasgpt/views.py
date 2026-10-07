@@ -18,18 +18,23 @@ def home(request):
 @login_required
 def dashboard(request):
     is_new_user = request.session.pop('new_user', False)
-    assignments = list(
+    all_assignments = list(
         Assignment.objects.select_related('course')
         .filter(course__user=request.user)
         .order_by('due_at', 'course__name', 'title')
     )
+    assignments = [
+        assignment
+        for assignment in all_assignments
+        if assignment.course.is_visible
+    ]
     profile, _ = StudentProfile.objects.get_or_create(user=request.user)
     due_soon, due_later, past_due = categorize_assignments(
         assignments,
         profile,
     )
     connection = CanvasConnection.objects.filter(user=request.user).first()
-    sync_status = get_dashboard_sync_status(assignments, connection)
+    sync_status = get_dashboard_sync_status(all_assignments, connection)
     return render(
         request,
         'dashboard.html',

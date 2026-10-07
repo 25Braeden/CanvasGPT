@@ -458,6 +458,33 @@ class CanvasSyncTests(TestCase):
         with self.assertRaises(CanvasSyncError):
             self.client_api.get("courses")
 
+    def test_paginated_courses_are_combined(self):
+        first_response = Mock()
+        first_response.json.return_value = [{"id": 100}]
+        first_response.links = {
+            "next": {
+                "url": "https://example.instructure.com/api/v1/courses?page=2"
+            }
+        }
+        second_response = Mock()
+        second_response.json.return_value = [{"id": 101}]
+        second_response.links = {}
+        self.client_api.session.get = Mock(
+            side_effect=[first_response, second_response]
+        )
+
+        courses = self.client_api.get_active_courses()
+
+        self.assertEqual(courses, [{"id": 100}, {"id": 101}])
+        self.assertEqual(self.client_api.session.get.call_count, 2)
+        self.assertEqual(
+            self.client_api.session.get.call_args_list[1].args[0],
+            "https://example.instructure.com/api/v1/courses?page=2",
+        )
+        self.assertIsNone(
+            self.client_api.session.get.call_args_list[1].kwargs["params"]
+        )
+
     @patch.object(CanvasAPIClient, "sync_user_data")
     def test_sync_view_handles_malformed_response_error(self, mock_sync):
         mock_sync.side_effect = CanvasSyncError("private response details")

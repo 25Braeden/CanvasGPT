@@ -82,21 +82,59 @@ class CanvasAPIClient:
             }
         )
 
-    def get(self, endpoint, params=None):
-        url = f"{self.base_url}/api/v1/{endpoint.lstrip('/')}"
+    def _get_response(self, url, params=None):
         response = self.session.get(
             url,
             params=params,
             timeout=15,
         )
         response.raise_for_status()
+        return response
+
+    def _get_json(self, url, params=None):
+        response = self._get_response(url, params)
         try:
-            return response.json()
+            return response, response.json()
         except ValueError:
             raise CanvasSyncError("Canvas returned invalid JSON.") from None
 
+    def get(self, endpoint, params=None):
+        url = f"{self.base_url}/api/v1/{endpoint.lstrip('/')}"
+        _, data = self._get_json(url, params)
+        return data
+
+    def get_paginated(self, endpoint, params=None):
+        url = f"{self.base_url}/api/v1/{endpoint.lstrip('/')}"
+        page_params = params
+        seen_urls = set()
+        results = []
+
+        while url:
+            if url in seen_urls:
+                raise CanvasSyncError("Canvas returned an invalid pagination link.")
+            seen_urls.add(url)
+            response, page_data = self._get_json(url, page_params)
+            results.extend(_require_list(page_data, "paginated response"))
+            page_params = None
+
+            links = response.links or {}
+            if not isinstance(links, dict):
+                raise CanvasSyncError("Canvas returned an invalid pagination link.")
+            next_link = links.get("next")
+            if next_link is None:
+                url = None
+            elif isinstance(next_link, dict) and isinstance(
+                next_link.get("url"),
+                str,
+            ):
+                url = next_link["url"]
+            else:
+                raise CanvasSyncError("Canvas returned an invalid pagination link.")
+
+        return results
+
     def get_active_courses(self):
-        return self.get(
+        return self.get_paginated(
             "courses",
             params={
                 "enrollment_state": "active",
@@ -105,7 +143,7 @@ class CanvasAPIClient:
         )
 
     def get_course_assignments(self, course_id):
-        return self.get(
+        return self.get_paginated(
             f"courses/{course_id}/assignments",
             params={
                 "per_page": 100,

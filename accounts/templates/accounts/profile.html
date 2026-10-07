@@ -18,6 +18,19 @@
         {{ profile_form.as_p }}
     </fieldset>
 
+    {% if courses %}
+    <fieldset>
+        <legend>Visible Canvas courses</legend>
+        <p>Choose the courses whose assignments appear on your dashboard.</p>
+        {% for course in courses %}
+        <label>
+            <input type="checkbox" name="visible_course_ids" value="{{ course.pk }}"{% if course.is_visible %} checked{% endif %}>
+            {{ course.name }}{% if course.course_code %} ({{ course.course_code }}){% endif %}
+        </label>
+        {% endfor %}
+    </fieldset>
+    {% endif %}
+
     <button class="primary" type="submit">Save changes</button>
 </form>
 

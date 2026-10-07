@@ -39,6 +39,7 @@ class Course(models.Model):
     course_code = models.CharField(max_length=50, blank=True)
     term = models.CharField(max_length=100, blank=True)
     is_active = models.BooleanField(default=True)
+    is_visible = models.BooleanField(default=True)
 
     def __str__(self):
         return self.name

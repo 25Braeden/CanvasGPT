@@ -2,6 +2,8 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
+from canvas_sync.models import Course
+
 from .models import StudentProfile
 
 User = get_user_model()
@@ -142,6 +144,40 @@ class ProfileTests(TestCase):
         self.assertEqual(profile.timezone, 'America/New_York')
         self.assertEqual(profile.preferred_session_minutes, 45)
         self.assertEqual(profile.due_soon_days, 14)
+
+    def test_profile_updates_visible_courses(self):
+        visible_course = Course.objects.create(
+            user=self.user,
+            canvas_course_id=1,
+            name='Visible course',
+        )
+        hidden_course = Course.objects.create(
+            user=self.user,
+            canvas_course_id=2,
+            name='Hidden course',
+        )
+
+        response = self.client.post(
+            reverse('accounts:profile'),
+            {
+                'first_name': '',
+                'last_name': '',
+                'email': 'profile@example.com',
+                'timezone': 'UTC',
+                'preferred_session_minutes': 30,
+                'break_minutes': 5,
+                'daily_study_goal_minutes': 60,
+                'notifications_enabled': 'on',
+                'due_soon_days': 7,
+                'visible_course_ids': [str(visible_course.pk)],
+            },
+        )
+
+        self.assertRedirects(response, reverse('accounts:profile'))
+        visible_course.refresh_from_db()
+        hidden_course.refresh_from_db()
+        self.assertTrue(visible_course.is_visible)
+        self.assertFalse(hidden_course.is_visible)
 
     def test_invalid_preferences_are_rejected(self):
         response = self.client.post(
