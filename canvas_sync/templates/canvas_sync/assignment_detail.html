@@ -8,6 +8,11 @@
 
     <h1>{{ assignment.title }}</h1>
 
+    <div class="sync-status {{ assignment_sync_status.level }}" role="status">
+        <strong>Canvas sync: {{ assignment_sync_status.label }}</strong>
+        <p>{{ assignment_sync_status.message }}</p>
+    </div>
+
     <div class="metadata-grid" aria-label="Assignment details">
         <div class="metadata-item">
             <span class="metadata-label">Course</span>

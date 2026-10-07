@@ -108,6 +108,7 @@ def assignment_detail(request, pk):
         "canvas_sync/assignment_detail.html",
         {
             "assignment": assignment,
+            "assignment_sync_status": get_assignment_sync_status(assignment),
             "task_items": assignment.task_items.filter(user=request.user),
             "task_form": TaskItemForm(),
         },
