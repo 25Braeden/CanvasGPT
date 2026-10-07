@@ -197,6 +197,18 @@ class AssignmentDetailPageTests(TestCase):
         self.assertContains(response, "Implementation quality")
         self.assertContains(response, "Documentation")
 
+    def test_displays_due_date_in_students_timezone(self):
+        self.user.student_profile.timezone = "EDT"
+        self.user.student_profile.save(update_fields=["timezone"])
+        Assignment.objects.filter(pk=self.assignment.pk).update(
+            due_at="2026-10-08T13:00:00Z"
+        )
+
+        response = self.client.get(self.detail_url())
+
+        self.assertContains(response, "Oct 8, 2026, 9:00 AM")
+        self.assertNotContains(response, "Oct 8, 2026, 1:00 PM")
+
     def test_displays_no_due_date_fallback(self):
         Assignment.objects.filter(pk=self.assignment.pk).update(due_at=None)
 
