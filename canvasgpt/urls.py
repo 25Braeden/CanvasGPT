@@ -14,4 +14,5 @@ urlpatterns = [
     path("accounts/", include("accounts.urls")),
     path("", include("canvas_sync.urls")),
     path("", include("ai_assistant.urls")),
+    path("planner/", include("planner.urls")),
 ]

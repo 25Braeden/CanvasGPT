@@ -168,6 +168,13 @@
         .sync-status.warning { border-color: #f4c46a; background: rgba(244, 196, 106, 0.18); }
         .sync-status.error { border-color: #f4a3a3; background: rgba(244, 163, 163, 0.18); }
         .sync-status strong { display: block; margin-bottom: 0.35rem; }
+        .schedule-list { display: grid; gap: 0.75rem; margin: 1rem 0; padding: 0; list-style: none; }
+        .schedule-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.85rem 1rem; border: 1px solid var(--border); border-radius: 1rem; background: var(--surface-translucent); }
+        .schedule-row.completed { opacity: 0.65; border-style: dashed; }
+        .schedule-row.completed .schedule-task { text-decoration: line-through; }
+        .schedule-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+        .schedule-actions form { margin: 0; }
+        .schedule-meta { color: var(--muted); font-size: 0.9rem; }
 
         @media (max-width: 640px) {
             .site-nav { align-items: flex-start; flex-direction: column; margin-bottom: 2.5rem; }
@@ -185,6 +192,8 @@
                 {% if user.is_authenticated %}
                     <span>Signed in as {{ user.username }}</span>
                     <a class="button" href="{% url 'dashboard' %}">Dashboard</a>
+                    <a class="button" href="{% url 'planner:plan_detail' %}">Study plan</a>
+                    <a class="button" href="{% url 'planner:availability_list' %}">Availability</a>
                     <a class="button" href="{% url 'accounts:profile' %}">Profile</a>
                     <form method="post" action="{% url 'accounts:logout' %}">
                         {% csrf_token %}

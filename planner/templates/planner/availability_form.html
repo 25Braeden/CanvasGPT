@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if is_new %}Add availability{% else %}Edit availability{% endif %} | CanvasGPT{% endblock %}
+
+{% block content %}
+<section class="content-card">
+    <p><a href="{% url 'planner:availability_list' %}">← Back to availability</a></p>
+    <h1>{% if is_new %}Add availability{% else %}Edit availability{% endif %}</h1>
+    <p>Weekly availability needs a weekday. One-time availability needs a date.</p>
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit" class="primary">Save availability</button>
+    </form>
+</section>
+{% endblock %}
