@@ -964,8 +964,13 @@ class CanvasSyncTests(TestCase):
         for call in mock_sync.call_args_list:
             self.assertEqual(call.args, (self.user,))
 
+    @patch("canvas_sync.views.logger")
     @patch.object(CanvasAPIClient, "sync_user_data")
-    def test_sync_view_handles_malformed_response_error(self, mock_sync):
+    def test_sync_view_handles_malformed_response_error(
+        self,
+        mock_sync,
+        mock_logger,
+    ):
         mock_sync.side_effect = CanvasSyncError("private response details")
         self.client.force_login(self.user)
 
@@ -977,6 +982,55 @@ class CanvasSyncTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(
             response,
-            "Canvas sync failed. Check your Canvas URL and access token.",
+            "Canvas returned data that could not be synchronized.",
         )
         self.assertNotContains(response, "private response details")
+        mock_logger.exception.assert_called_once_with(
+            "Canvas synchronization failed for user ID %s.",
+            self.user.pk,
+        )
+
+    @patch("canvas_sync.views.logger")
+    @patch.object(CanvasAPIClient, "sync_user_data")
+    def test_sync_view_identifies_rejected_credentials(
+        self,
+        mock_sync,
+        mock_logger,
+    ):
+        canvas_response = Mock(status_code=401)
+        mock_sync.side_effect = requests.HTTPError(
+            "private API details",
+            response=canvas_response,
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.post(reverse("canvas_sync:sync"), follow=True)
+
+        self.assertContains(
+            response,
+            "Canvas rejected the saved access token. Check your Canvas connection.",
+        )
+        self.assertNotContains(response, "private API details")
+        self.assertNotContains(response, self.connection.access_token)
+        mock_logger.exception.assert_called_once()
+
+    @patch("canvas_sync.views.logger")
+    @patch.object(CanvasAPIClient, "sync_user_data")
+    def test_sync_view_identifies_network_failure(
+        self,
+        mock_sync,
+        mock_logger,
+    ):
+        mock_sync.side_effect = requests.ConnectionError(
+            "private network details"
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.post(reverse("canvas_sync:sync"), follow=True)
+
+        self.assertContains(
+            response,
+            "Canvas could not be reached. Check your connection and try again.",
+        )
+        self.assertNotContains(response, "private network details")
+        mock_logger.exception.assert_called_once()
