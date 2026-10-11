@@ -24,7 +24,7 @@
         </div>
         <div class="metadata-item">
             <span class="metadata-label">Points possible</span>
-            {% if assignment.points_possible %}{{ assignment.points_possible }}{% else %}Not provided{% endif %}
+            {% if assignment.points_possible is not None %}{{ assignment.points_possible }}{% else %}Not provided{% endif %}
         </div>
         <div class="metadata-item">
             <span class="metadata-label">Submission</span>
@@ -51,7 +51,7 @@
         {% for criterion in assignment.rubric_criteria.all %}
         <li class="rubric-item">
             <strong>{{ criterion.title }}</strong>
-            {% if criterion.points %}<p>{{ criterion.points }} points</p>{% endif %}
+            {% if criterion.points is not None %}<p>{{ criterion.points }} points</p>{% endif %}
             {% if criterion.description %}{{ criterion.description|linebreaks }}{% else %}<p>No criterion description provided.</p>{% endif %}
         </li>
         {% endfor %}

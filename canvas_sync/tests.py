@@ -226,6 +226,21 @@ class AssignmentDetailPageTests(TestCase):
             "No rubric criteria were synchronized for this assignment.",
         )
 
+    def test_displays_zero_assignment_and_rubric_points(self):
+        Assignment.objects.filter(pk=self.assignment.pk).update(points_possible=0)
+        self.assignment.rubric_criteria.all().delete()
+        RubricCriterion.objects.create(
+            assignment=self.assignment,
+            title="Required but ungraded",
+            points=0,
+        )
+
+        response = self.client.get(self.detail_url())
+
+        self.assertContains(response, "0.00", count=2)
+        self.assertContains(response, "0.00 points")
+        self.assertNotContains(response, "Not provided")
+
     def test_displays_recent_sync_status(self):
         Assignment.objects.filter(pk=self.assignment.pk).update(
             sync_status=Assignment.SyncStatus.SUCCESS,
