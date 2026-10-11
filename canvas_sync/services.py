@@ -60,10 +60,20 @@ def _require_id(value, field_name):
     return identifier
 
 
-def _optional_id(value, field_name):
+def _optional_rubric_id(value):
     if value is None:
         return None
-    return _require_id(value, field_name)
+    if isinstance(value, bool):
+        raise CanvasSyncError("Canvas returned an invalid rubric criterion ID.")
+    if isinstance(value, int):
+        if value < 1:
+            raise CanvasSyncError("Canvas returned an invalid rubric criterion ID.")
+        return str(value)
+    if isinstance(value, str):
+        if not value.strip() or len(value) > 255:
+            raise CanvasSyncError("Canvas returned an invalid rubric criterion ID.")
+        return value
+    raise CanvasSyncError("Canvas returned an invalid rubric criterion ID.")
 
 
 def _optional_text(value, field_name):
@@ -223,9 +233,8 @@ class CanvasAPIClient:
                     )
                     assignment["rubric"].append(
                         {
-                            "id": _optional_id(
+                            "id": _optional_rubric_id(
                                 criterion_data.get("id"),
-                                "rubric criterion",
                             ),
                             "title": _optional_text(
                                 criterion_data.get("description"),
