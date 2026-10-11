@@ -232,6 +232,12 @@ class ChecklistViewTests(TestCase):
             response = self.client.post(url, data)
             self.assertEqual(response.status_code, 400, data)
             self.assertTrue(response.context['task_form'].errors, data)
+            self.assertEqual(
+                response.context['assignment_sync_status']['label'],
+                'Up to date',
+                data,
+            )
+            self.assertContains(response, 'Canvas sync: Up to date', status_code=400)
         self.assertEqual(TaskItem.objects.count(), 0)
 
     def test_add_to_other_users_assignment_rejected(self):

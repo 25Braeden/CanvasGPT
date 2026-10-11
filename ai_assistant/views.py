@@ -5,6 +5,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from canvas_sync.models import Assignment
+from canvas_sync.views import get_assignment_sync_status
 
 from .forms import TaskItemForm
 from .models import TaskItem
@@ -40,6 +41,7 @@ def task_add(request, assignment_pk):
             'canvas_sync/assignment_detail.html',
             {
                 'assignment': assignment,
+                'assignment_sync_status': get_assignment_sync_status(assignment),
                 'task_items': assignment.task_items.filter(user=request.user),
                 'task_form': form,
             },
