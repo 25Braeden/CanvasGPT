@@ -156,6 +156,21 @@ class GeneratePlanTests(SchedulingTestCase):
         )
         self.assertEqual(result.plan.end_date, datetime.date(2026, 10, 2))
 
+    def test_task_uses_shorter_sessions_to_fit_fragmented_availability(self):
+        self.set_profile(preferred_session_minutes=30)
+        self.one_time(datetime.date(2026, 10, 1), datetime.time(18), datetime.time(18, 20))
+        self.one_time(datetime.date(2026, 10, 1), datetime.time(19), datetime.time(19, 25))
+        self.make_task(self.make_assignment(at(2, 12)), minutes=45)
+
+        result = generate_plan(self.user, now=NOW)
+
+        self.assertEqual(result.unscheduled, [])
+        self.assertEqual(
+            self.times(result.plan),
+            [(at(1, 18), at(1, 18, 20)), (at(1, 19), at(1, 19, 25))],
+        )
+        self.assert_valid_plan(result.plan)
+
     def test_session_may_end_exactly_at_due_time(self):
         self.one_time(datetime.date(2026, 10, 1), datetime.time(18), datetime.time(19))
         self.make_task(self.make_assignment(at(1, 18, 30)), minutes=30)

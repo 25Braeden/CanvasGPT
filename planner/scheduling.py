@@ -144,16 +144,22 @@ def _place_task(windows, minutes, session_length, break_length, deadline):
     remaining = minutes
     index = 0
     while remaining > 0:
-        length = datetime.timedelta(minutes=min(session_length, remaining))
         while index < len(free):
             start, end = free[index]
-            if start + length <= min(end, deadline):
+            available_end = min(end, deadline)
+            available_minutes = int(
+                (available_end - start).total_seconds() // 60
+            )
+            if available_minutes > 0:
                 break
             if start >= deadline:
                 return None, windows
             index += 1
         else:
             return None, windows
+        length = datetime.timedelta(
+            minutes=min(session_length, remaining, available_minutes)
+        )
         session_end = start + length
         sessions.append((start, session_end))
         next_free = session_end + datetime.timedelta(minutes=break_length)
