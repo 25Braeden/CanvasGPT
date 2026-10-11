@@ -1,5 +1,6 @@
 from datetime import timezone as datetime_timezone
 from decimal import Decimal, InvalidOperation
+from urllib.parse import urljoin, urlsplit
 
 import requests
 from django.db import DatabaseError, transaction
@@ -14,6 +15,25 @@ SYNC_FAILURE_MESSAGE = "Canvas sync failed. Check your Canvas connection."
 
 class CanvasSyncError(Exception):
     """A safe error for invalid or unusable Canvas API responses."""
+
+
+def _url_origin(url):
+    parsed = urlsplit(url)
+    try:
+        port = parsed.port
+    except ValueError:
+        raise CanvasSyncError("Canvas returned an invalid URL.") from None
+    scheme = parsed.scheme.lower()
+    if (
+        scheme not in ("http", "https")
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+    ):
+        raise CanvasSyncError("Canvas returned an invalid URL.")
+    if port is None:
+        port = 443 if scheme == "https" else 80
+    return scheme, parsed.hostname.lower(), port
 
 
 def _require_list(value, field_name):
@@ -81,6 +101,7 @@ def _optional_due_at(value):
 class CanvasAPIClient:
     def __init__(self, base_url, access_token):
         self.base_url = base_url.rstrip("/")
+        self.origin = _url_origin(self.base_url)
         self.session = requests.Session()
         self.session.headers.update({"Authorization": f"Bearer {access_token}"})
 
@@ -122,7 +143,10 @@ class CanvasAPIClient:
             if next_link is None:
                 url = None
             elif isinstance(next_link, dict) and isinstance(next_link.get("url"), str):
-                url = next_link["url"]
+                next_url = urljoin(url, next_link["url"])
+                if _url_origin(next_url) != self.origin:
+                    raise CanvasSyncError("Canvas returned an invalid pagination link.")
+                url = next_url
             else:
                 raise CanvasSyncError("Canvas returned an invalid pagination link.")
 

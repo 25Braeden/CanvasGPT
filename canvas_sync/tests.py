@@ -831,6 +831,22 @@ class CanvasSyncTests(TestCase):
             self.client_api.session.get.call_args_list[1].kwargs["params"]
         )
 
+    def test_pagination_rejects_cross_origin_next_link(self):
+        first_response = Mock()
+        first_response.json.return_value = [{"id": 100}]
+        first_response.links = {
+            "next": {"url": "https://attacker.example/api/v1/courses?page=2"}
+        }
+        self.client_api.session.get = Mock(return_value=first_response)
+
+        with self.assertRaisesMessage(
+            CanvasSyncError,
+            "Canvas returned an invalid pagination link.",
+        ):
+            self.client_api.get_active_courses()
+
+        self.assertEqual(self.client_api.session.get.call_count, 1)
+
     def test_paginated_assignments_are_combined(self):
         first_response = Mock()
         first_response.json.return_value = [{"id": 200}]
