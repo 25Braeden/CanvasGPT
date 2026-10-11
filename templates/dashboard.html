@@ -11,6 +11,10 @@
 <p>Welcome back, {{ user.username }}.</p>
 {% endif %}
 <p>Your Canvas courses, assignments, and study plans will appear here.</p>
+<div class="form-actions">
+    <a class="button primary" href="{% url 'planner:plan_detail' %}">View study plan</a>
+    <a class="button" href="{% url 'planner:availability_list' %}">Manage availability</a>
+</div>
 
 <details class="assignment-section" open>
     <summary>Due soon <span>({{ due_soon_assignments|length }})</span></summary>

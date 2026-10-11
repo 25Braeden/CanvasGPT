@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+
+{% block title %}Availability | CanvasGPT{% endblock %}
+
+{% block content %}
+<section class="content-card wide">
+    <p><a href="{% url 'dashboard' %}">← Back to dashboard</a></p>
+    <h1>Availability</h1>
+    <p>Tell CanvasGPT when you can study. Study plans only schedule sessions inside these times.</p>
+    <div class="form-actions">
+        <a class="button primary" href="{% url 'planner:availability_add' %}">Add availability</a>
+        <a class="button" href="{% url 'planner:plan_detail' %}">View study plan</a>
+    </div>
+
+    <h2 class="section-divider">Every week</h2>
+    {% if weekly_blocks %}
+    <ul class="schedule-list">
+        {% for block in weekly_blocks %}
+        <li class="schedule-row">
+            <div>
+                <strong>{{ block.get_weekday_display }}</strong>
+                <div class="schedule-meta">{{ block.start_time|time:"g:i A" }} – {{ block.end_time|time:"g:i A" }}</div>
+            </div>
+            <div class="schedule-actions">
+                <a class="button" href="{% url 'planner:availability_edit' block.pk %}">Edit</a>
+                <form method="post" action="{% url 'planner:availability_delete' block.pk %}">{% csrf_token %}
+                    <button type="submit">Delete</button>
+                </form>
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p>No weekly availability yet.</p>
+    {% endif %}
+
+    <h2 class="section-divider">One-time</h2>
+    {% if one_time_blocks %}
+    <ul class="schedule-list">
+        {% for block in one_time_blocks %}
+        <li class="schedule-row">
+            <div>
+                <strong>{{ block.date|date:"l, M j, Y" }}</strong>
+                <div class="schedule-meta">{{ block.start_time|time:"g:i A" }} – {{ block.end_time|time:"g:i A" }}</div>
+            </div>
+            <div class="schedule-actions">
+                <a class="button" href="{% url 'planner:availability_edit' block.pk %}">Edit</a>
+                <form method="post" action="{% url 'planner:availability_delete' block.pk %}">{% csrf_token %}
+                    <button type="submit">Delete</button>
+                </form>
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p>No upcoming one-time availability.</p>
+    {% endif %}
+</section>
+{% endblock %}

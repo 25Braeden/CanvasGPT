@@ -74,3 +74,12 @@ python manage.py runserver
 ```
 
 Open http://127.0.0.1:8000/.
+
+## Study planner
+
+Signed-in students can schedule their checklist tasks around their own time:
+
+1. Open **Availability** in the navigation bar and add weekly blocks (for example, every Monday 6:00–8:00 PM) or one-time blocks on a specific date.
+2. Open **Study plan** and click **Generate plan**. Incomplete tasks are placed into your availability, earliest due date first, in sessions sized by the session length and break settings on your profile. Every session ends before the assignment is due and no two sessions overlap.
+3. Tasks that can't be scheduled (no due date, already past due, or not enough free time before the due date) are listed under **Couldn't schedule** with the reason.
+4. Mark sessions complete as you go. When every session for a task is complete, the task is checked off on its assignment checklist. Regenerating keeps completed sessions and only schedules the remaining time.

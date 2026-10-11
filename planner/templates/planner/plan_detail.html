@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% load tz %}
+
+{% block title %}Study plan | CanvasGPT{% endblock %}
+
+{% block content %}
+{% timezone student_timezone %}
+<section class="content-card wide">
+    <p><a href="{% url 'dashboard' %}">← Back to dashboard</a></p>
+    <h1>Study plan</h1>
+    {% if plan %}
+    <p>Generated {{ plan.created_at|date:"M j, Y, g:i A" }}. Regenerate after changing your tasks or availability.</p>
+    {% else %}
+    <p>You don’t have a study plan yet. Generating one schedules your incomplete tasks into your availability before each due date.</p>
+    {% endif %}
+    {% if not has_availability %}
+    <p>You haven’t added any availability, so nothing can be scheduled yet. <a href="{% url 'planner:availability_list' %}">Add availability</a></p>
+    {% endif %}
+    <div class="form-actions">
+        <form method="post" action="{% url 'planner:plan_generate' %}">{% csrf_token %}
+            <button type="submit" class="primary">{% if plan %}Regenerate plan{% else %}Generate plan{% endif %}</button>
+        </form>
+        <a class="button" href="{% url 'planner:availability_list' %}">Manage availability</a>
+    </div>
+
+    {% if unscheduled %}
+    <div class="sync-status warning section-divider" role="status">
+        <strong>Couldn’t schedule {{ unscheduled|length }} task{{ unscheduled|length|pluralize }}</strong>
+        <ul class="schedule-list">
+            {% for item in unscheduled %}
+            <li>
+                <strong>{{ item.task.description }}</strong>
+                ({{ item.task.estimated_minutes }} min) for
+                <a href="{% url 'canvas_sync:assignment_detail' item.task.assignment.pk %}">{{ item.task.assignment.title }}</a>
+                <div class="schedule-meta">{{ item.reason }}</div>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    {% if plan %}
+    {% for day, sessions in days %}
+    <h2 class="section-divider">{{ day|date:"l, M j, Y" }}</h2>
+    <ul class="schedule-list">
+        {% for session in sessions %}
+        <li class="schedule-row{% if session.is_completed %} completed{% endif %}">
+            <div>
+                <strong class="schedule-task">{{ session.task_item.description }}</strong>
+                <div class="schedule-meta">
+                    {{ session.scheduled_start|date:"g:i A" }} – {{ session.scheduled_end|date:"g:i A" }} ·
+                    <a href="{% url 'canvas_sync:assignment_detail' session.task_item.assignment.pk %}">{{ session.task_item.assignment.title }}</a>
+                    · Due {{ session.task_item.assignment.due_at|date:"M j, g:i A" }}
+                </div>
+            </div>
+            <div class="schedule-actions">
+                <form method="post" action="{% url 'planner:session_toggle' session.pk %}">{% csrf_token %}
+                    <button type="submit">{% if session.is_completed %}Mark incomplete{% else %}Mark complete{% endif %}</button>
+                </form>
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+    {% empty %}
+    <p class="section-divider">No sessions were scheduled in this plan.</p>
+    {% endfor %}
+    {% endif %}
+</section>
+{% endtimezone %}
+{% endblock %}
