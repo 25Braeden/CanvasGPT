@@ -69,7 +69,7 @@
       "title": "Implementation quality",
       "description": "The integration handles valid Canvas API responses.",
       "points": "60.00",
-      "canvas_rubric_criterion_id": 70001
+      "canvas_rubric_criterion_id": "_70001"
     }
   },
   {
@@ -80,7 +80,7 @@
       "title": "Documentation",
       "description": "Setup and usage instructions are complete.",
       "points": "40.00",
-      "canvas_rubric_criterion_id": 70002
+      "canvas_rubric_criterion_id": "_70002"
     }
   }
 ]
