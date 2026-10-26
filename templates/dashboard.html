@@ -27,7 +27,7 @@
                 <strong><a href="{% url 'canvas_sync:assignment_detail' assignment.pk %}">{{ assignment.title }}</a></strong>
                 <p>{{ assignment.course.name }} · Due {{ assignment.due_at|date:"M j, Y, g:i A" }}</p>
             </div>
-            {% if assignment.points_possible %}<span>{{ assignment.points_possible }} pts</span>{% endif %}
+            {% if assignment.points_possible is not None %}<span>{{ assignment.points_possible }} pts</span>{% endif %}
         </li>
         {% endfor %}
     </ul>
@@ -46,7 +46,7 @@
                 <strong><a href="{% url 'canvas_sync:assignment_detail' assignment.pk %}">{{ assignment.title }}</a></strong>
                 <p>{{ assignment.course.name }}{% if assignment.due_at %} · Due {{ assignment.due_at|date:"M j, Y, g:i A" }}{% else %} · No due date provided{% endif %}</p>
             </div>
-            {% if assignment.points_possible %}<span>{{ assignment.points_possible }} pts</span>{% endif %}
+            {% if assignment.points_possible is not None %}<span>{{ assignment.points_possible }} pts</span>{% endif %}
         </li>
         {% endfor %}
     </ul>
@@ -65,7 +65,7 @@
                 <strong><a href="{% url 'canvas_sync:assignment_detail' assignment.pk %}">{{ assignment.title }}</a></strong>
                 <p>{{ assignment.course.name }} · Was due {{ assignment.due_at|date:"M j, Y, g:i A" }}</p>
             </div>
-            {% if assignment.points_possible %}<span>{{ assignment.points_possible }} pts</span>{% endif %}
+            {% if assignment.points_possible is not None %}<span>{{ assignment.points_possible }} pts</span>{% endif %}
         </li>
         {% endfor %}
     </ul>
