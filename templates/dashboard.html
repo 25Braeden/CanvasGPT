@@ -27,7 +27,7 @@
                 <strong><a href="{% url 'canvas_sync:assignment_detail' assignment.pk %}">{{ assignment.title }}</a></strong>
                 <p>{{ assignment.course.name }} · Due {{ assignment.due_at|date:"M j, Y, g:i A" }}</p>
             </div>
-            {% if assignment.points_possible %}<span>{{ assignment.points_possible }} pts</span>{% endif %}
+            {% if assignment.points_possible is not None %}<span>{{ assignment.points_possible }} pts</span>{% endif %}
         </li>
         {% endfor %}
     </ul>
@@ -46,12 +46,32 @@
                 <strong><a href="{% url 'canvas_sync:assignment_detail' assignment.pk %}">{{ assignment.title }}</a></strong>
                 <p>{{ assignment.course.name }}{% if assignment.due_at %} · Due {{ assignment.due_at|date:"M j, Y, g:i A" }}{% else %} · No due date provided{% endif %}</p>
             </div>
-            {% if assignment.points_possible %}<span>{{ assignment.points_possible }} pts</span>{% endif %}
+            {% if assignment.points_possible is not None %}<span>{{ assignment.points_possible }} pts</span>{% endif %}
         </li>
         {% endfor %}
     </ul>
     {% else %}
     <p>No assignments are due after your due-soon range.</p>
+    {% endif %}
+</details>
+
+<details class="assignment-section" open>
+    <summary>Zero-point assignments <span>({{ zero_point_assignments|length }})</span></summary>
+    <p>Assignments that Canvas lists as worth zero points.</p>
+    {% if zero_point_assignments %}
+    <ul class="assignment-list">
+        {% for assignment in zero_point_assignments %}
+        <li class="assignment-row">
+            <div>
+                <strong><a href="{% url 'canvas_sync:assignment_detail' assignment.pk %}">{{ assignment.title }}</a></strong>
+                <p>{{ assignment.course.name }}{% if assignment.due_at %} · Due {{ assignment.due_at|date:"M j, Y, g:i A" }}{% else %} · No due date provided{% endif %}</p>
+            </div>
+            <span>{{ assignment.points_possible }} pts</span>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p>No zero-point assignments.</p>
     {% endif %}
 </details>
 
@@ -65,7 +85,7 @@
                 <strong><a href="{% url 'canvas_sync:assignment_detail' assignment.pk %}">{{ assignment.title }}</a></strong>
                 <p>{{ assignment.course.name }} · Was due {{ assignment.due_at|date:"M j, Y, g:i A" }}</p>
             </div>
-            {% if assignment.points_possible %}<span>{{ assignment.points_possible }} pts</span>{% endif %}
+            {% if assignment.points_possible is not None %}<span>{{ assignment.points_possible }} pts</span>{% endif %}
         </li>
         {% endfor %}
     </ul>

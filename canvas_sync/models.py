@@ -112,7 +112,8 @@ class RubricCriterion(models.Model):
     points = models.DecimalField(
         max_digits=8, decimal_places=2, null=True, blank=True
     )
-    canvas_rubric_criterion_id = models.BigIntegerField(
+    canvas_rubric_criterion_id = models.CharField(
+        max_length=255,
         null=True,
         blank=True,
     )

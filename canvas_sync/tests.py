@@ -572,7 +572,7 @@ class CanvasSyncTests(TestCase):
                 **self.sample_assignments()[0],
                 "rubric": [
                     {
-                        "id": 900,
+                        "id": "_900",
                         "description": "Original title",
                         "long_description": "Original description",
                         "points": 20,
@@ -592,7 +592,7 @@ class CanvasSyncTests(TestCase):
         )
         self.assertEqual(criteria.count(), 1)
         self.assertEqual(criteria.get().title, "Renamed title")
-        self.assertEqual(criteria.get().canvas_rubric_criterion_id, 900)
+        self.assertEqual(criteria.get().canvas_rubric_criterion_id, "_900")
 
     @patch.object(CanvasAPIClient, "get_course_assignments")
     @patch.object(CanvasAPIClient, "get_active_courses")
@@ -606,8 +606,8 @@ class CanvasSyncTests(TestCase):
             {
                 **self.sample_assignments()[0],
                 "rubric": [
-                    {"id": 900, "description": "Quality", "points": 10},
-                    {"id": 901, "description": "Quality", "points": 20},
+                    {"id": "_900", "description": "Quality", "points": 10},
+                    {"id": "_901", "description": "Quality", "points": 20},
                 ],
             }
         ]
@@ -620,8 +620,82 @@ class CanvasSyncTests(TestCase):
         self.assertEqual(criteria.count(), 2)
         self.assertEqual(
             list(criteria.values_list("canvas_rubric_criterion_id", flat=True)),
-            [900, 901],
+            ["_900", "_901"],
         )
+
+    @patch.object(CanvasAPIClient, "get_course_assignments")
+    @patch.object(CanvasAPIClient, "get_active_courses")
+    def test_numeric_rubric_criterion_id_is_normalized_to_string(
+        self,
+        mock_courses,
+        mock_assignments,
+    ):
+        mock_courses.return_value = self.sample_courses()
+        mock_assignments.return_value = [
+            {
+                **self.sample_assignments()[0],
+                "rubric": [
+                    {"id": 900, "description": "Quality", "points": 10},
+                ],
+            }
+        ]
+
+        self.client_api.sync_user_data(self.user)
+
+        criterion = RubricCriterion.objects.get(
+            assignment__canvas_assignment_id=200
+        )
+        self.assertEqual(criterion.canvas_rubric_criterion_id, "900")
+
+    @patch.object(CanvasAPIClient, "get_course_assignments")
+    @patch.object(CanvasAPIClient, "get_active_courses")
+    def test_missing_rubric_criterion_id_uses_null_fallback(
+        self,
+        mock_courses,
+        mock_assignments,
+    ):
+        mock_courses.return_value = self.sample_courses()
+        mock_assignments.return_value = self.sample_assignments()
+
+        self.client_api.sync_user_data(self.user)
+        self.client_api.sync_user_data(self.user)
+
+        criteria = RubricCriterion.objects.filter(
+            assignment__canvas_assignment_id=200
+        )
+        self.assertEqual(criteria.count(), 1)
+        self.assertIsNone(criteria.get().canvas_rubric_criterion_id)
+
+    @patch.object(CanvasAPIClient, "get_course_assignments")
+    @patch.object(CanvasAPIClient, "get_active_courses")
+    def test_invalid_rubric_criterion_ids_are_rejected(
+        self,
+        mock_courses,
+        mock_assignments,
+    ):
+        mock_courses.return_value = self.sample_courses()
+        invalid_ids = (True, 0, -1, 1.5, "", "   ", "x" * 256, [])
+
+        for invalid_id in invalid_ids:
+            with self.subTest(invalid_id=invalid_id):
+                mock_assignments.return_value = [
+                    {
+                        **self.sample_assignments()[0],
+                        "rubric": [
+                            {
+                                "id": invalid_id,
+                                "description": "Quality",
+                                "points": 10,
+                            },
+                        ],
+                    }
+                ]
+
+                with self.assertRaisesRegex(
+                    CanvasSyncError,
+                    "invalid rubric criterion ID",
+                ):
+                    self.client_api._fetch_sync_data()
 
     @patch.object(CanvasAPIClient, "get_course_assignments")
     @patch.object(CanvasAPIClient, "get_active_courses")
@@ -890,8 +964,13 @@ class CanvasSyncTests(TestCase):
         for call in mock_sync.call_args_list:
             self.assertEqual(call.args, (self.user,))
 
+    @patch("canvas_sync.views.logger")
     @patch.object(CanvasAPIClient, "sync_user_data")
-    def test_sync_view_handles_malformed_response_error(self, mock_sync):
+    def test_sync_view_handles_malformed_response_error(
+        self,
+        mock_sync,
+        mock_logger,
+    ):
         mock_sync.side_effect = CanvasSyncError("private response details")
         self.client.force_login(self.user)
 
@@ -903,6 +982,55 @@ class CanvasSyncTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(
             response,
-            "Canvas sync failed. Check your Canvas URL and access token.",
+            "Canvas returned data that could not be synchronized.",
         )
         self.assertNotContains(response, "private response details")
+        mock_logger.exception.assert_called_once_with(
+            "Canvas synchronization failed for user ID %s.",
+            self.user.pk,
+        )
+
+    @patch("canvas_sync.views.logger")
+    @patch.object(CanvasAPIClient, "sync_user_data")
+    def test_sync_view_identifies_rejected_credentials(
+        self,
+        mock_sync,
+        mock_logger,
+    ):
+        canvas_response = Mock(status_code=401)
+        mock_sync.side_effect = requests.HTTPError(
+            "private API details",
+            response=canvas_response,
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.post(reverse("canvas_sync:sync"), follow=True)
+
+        self.assertContains(
+            response,
+            "Canvas rejected the saved access token. Check your Canvas connection.",
+        )
+        self.assertNotContains(response, "private API details")
+        self.assertNotContains(response, self.connection.access_token)
+        mock_logger.exception.assert_called_once()
+
+    @patch("canvas_sync.views.logger")
+    @patch.object(CanvasAPIClient, "sync_user_data")
+    def test_sync_view_identifies_network_failure(
+        self,
+        mock_sync,
+        mock_logger,
+    ):
+        mock_sync.side_effect = requests.ConnectionError(
+            "private network details"
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.post(reverse("canvas_sync:sync"), follow=True)
+
+        self.assertContains(
+            response,
+            "Canvas could not be reached. Check your connection and try again.",
+        )
+        self.assertNotContains(response, "private network details")
+        mock_logger.exception.assert_called_once()

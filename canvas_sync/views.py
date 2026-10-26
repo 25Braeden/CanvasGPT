@@ -1,5 +1,7 @@
-import requests
+import logging
 from datetime import timedelta
+
+import requests
 
 from django.contrib import messages
 from django.db import DatabaseError
@@ -18,6 +20,20 @@ STALE_AFTER = timedelta(hours=24)
 DEFAULT_ASSIGNMENT_SYNC_FAILURE_MESSAGE = (
     "Canvas synchronization failed for this assignment."
 )
+logger = logging.getLogger(__name__)
+
+
+def _sync_failure_message(error):
+    if isinstance(error, requests.HTTPError):
+        response = error.response
+        if response is not None and response.status_code in (401, 403):
+            return "Canvas rejected the saved access token. Check your Canvas connection."
+        return "Canvas returned an API error. Try syncing again later."
+    if isinstance(error, requests.RequestException):
+        return "Canvas could not be reached. Check your connection and try again."
+    if isinstance(error, CanvasSyncError):
+        return "Canvas returned data that could not be synchronized."
+    return "Canvas data could not be saved. Try syncing again later."
 
 
 @login_required
@@ -84,11 +100,12 @@ def sync_canvas(request):
             "Canvas data synced successfully.",
         )
 
-    except (requests.RequestException, CanvasSyncError, DatabaseError):
-        messages.error(
-            request,
-            "Canvas sync failed. Check your Canvas URL and access token.",
+    except (requests.RequestException, CanvasSyncError, DatabaseError) as error:
+        logger.exception(
+            "Canvas synchronization failed for user ID %s.",
+            request.user.pk,
         )
+        messages.error(request, _sync_failure_message(error))
 
     return redirect("canvas_sync:connection")
 

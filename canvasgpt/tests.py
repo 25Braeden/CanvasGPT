@@ -24,12 +24,13 @@ class DashboardAssignmentSectionsTests(TestCase):
             name="Test Course",
         )
 
-    def create_assignment(self, title, due_at):
+    def create_assignment(self, title, due_at, points_possible=None):
         return Assignment.objects.create(
             course=self.course,
             canvas_assignment_id=Assignment.objects.count() + 1,
             title=title,
             due_at=due_at,
+            points_possible=points_possible,
         )
 
     def test_dashboard_groups_assignments_by_due_date(self):
@@ -71,6 +72,40 @@ class DashboardAssignmentSectionsTests(TestCase):
         )
         self.assertContains(response, "<details", html=False)
 
+    def test_dashboard_groups_zero_point_assignments_separately(self):
+        now = timezone.now()
+        past_due = self.create_assignment(
+            "Zero-point past due",
+            now - timedelta(days=1),
+            points_possible=0,
+        )
+        due_soon = self.create_assignment(
+            "Zero-point due soon",
+            now + timedelta(days=1),
+            points_possible=0,
+        )
+        due_later = self.create_assignment(
+            "Zero-point due later",
+            now + timedelta(days=4),
+            points_possible=0,
+        )
+
+        response = self.client.get(reverse("dashboard"))
+
+        self.assertEqual(
+            list(response.context["zero_point_assignments"]),
+            [past_due, due_soon, due_later],
+        )
+        self.assertEqual(list(response.context["past_due_assignments"]), [])
+        self.assertEqual(list(response.context["due_soon_assignments"]), [])
+        self.assertEqual(list(response.context["due_later_assignments"]), [])
+        self.assertContains(
+            response,
+            "<summary>Zero-point assignments <span>(3)</span></summary>",
+            html=False,
+        )
+        self.assertContains(response, "<span>0.00 pts</span>", count=3, html=True)
+
     def test_dashboard_excludes_assignments_from_hidden_courses(self):
         hidden_course = Course.objects.create(
             user=self.user,
@@ -91,6 +126,7 @@ class DashboardAssignmentSectionsTests(TestCase):
             list(response.context["due_soon_assignments"])
             + list(response.context["due_later_assignments"])
             + list(response.context["past_due_assignments"])
+            + list(response.context["zero_point_assignments"])
         )
         self.assertNotIn(hidden_assignment, displayed_assignments)
         self.assertNotContains(response, hidden_assignment.title)
