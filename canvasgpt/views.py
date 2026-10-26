@@ -99,14 +99,31 @@ def get_dashboard_sync_status(assignments, connection=None):
             'message': connection.sync_error_message or 'Canvas synchronization failed. Check your Canvas connection.',
         }
 
-    if not assignment_list:
-        if connection and connection.sync_status == CanvasConnection.SyncStatus.SUCCESS:
+    if connection and connection.sync_status == CanvasConnection.SyncStatus.SUCCESS:
+        if not connection.last_synchronized_at:
             return {
-                'level': 'success',
-                'label': 'Up to date',
-                'message': 'Canvas data was recently synchronized. No active assignments were found.',
+                'level': 'warning',
+                'label': 'Sync incomplete',
+                'message': 'Canvas reported a successful sync without a timestamp.',
+            }
+        if timezone.now() - connection.last_synchronized_at > STALE_AFTER:
+            return {
+                'level': 'warning',
+                'label': 'Sync may be stale',
+                'message': 'Canvas data was last synced more than 24 hours ago.',
                 'last_synced': connection.last_synchronized_at,
             }
+        message = 'Canvas data was recently synchronized.'
+        if not assignment_list:
+            message += ' No active assignments were found.'
+        return {
+            'level': 'success',
+            'label': 'Up to date',
+            'message': message,
+            'last_synced': connection.last_synchronized_at,
+        }
+
+    if not assignment_list:
         return {
             'level': 'warning',
             'label': 'No synced assignments yet',
