@@ -31,7 +31,7 @@ def dashboard(request):
         and assignment.is_active
     ]
     profile, _ = StudentProfile.objects.get_or_create(user=request.user)
-    due_soon, due_later, past_due = categorize_assignments(
+    due_soon, due_later, past_due, zero_point = categorize_assignments(
         assignments,
         profile,
     )
@@ -46,6 +46,7 @@ def dashboard(request):
             'due_soon_assignments': due_soon,
             'due_later_assignments': due_later,
             'past_due_assignments': past_due,
+            'zero_point_assignments': zero_point,
             'due_soon_days': profile.due_soon_days,
             'sync_status': sync_status,
         },
@@ -63,8 +64,13 @@ def categorize_assignments(assignments, profile):
     due_soon = []
     due_later = []
     past_due = []
+    zero_point = []
 
     for assignment in assignments:
+        if assignment.points_possible == 0:
+            zero_point.append(assignment)
+            continue
+
         if assignment.due_at is None:
             due_later.append(assignment)
             continue
@@ -80,7 +86,7 @@ def categorize_assignments(assignments, profile):
         else:
             due_later.append(assignment)
 
-    return due_soon, due_later, past_due
+    return due_soon, due_later, past_due, zero_point
 
 
 def get_dashboard_sync_status(assignments, connection=None):

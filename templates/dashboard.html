@@ -55,6 +55,26 @@
     {% endif %}
 </details>
 
+<details class="assignment-section" open>
+    <summary>Zero-point assignments <span>({{ zero_point_assignments|length }})</span></summary>
+    <p>Assignments that Canvas lists as worth zero points.</p>
+    {% if zero_point_assignments %}
+    <ul class="assignment-list">
+        {% for assignment in zero_point_assignments %}
+        <li class="assignment-row">
+            <div>
+                <strong><a href="{% url 'canvas_sync:assignment_detail' assignment.pk %}">{{ assignment.title }}</a></strong>
+                <p>{{ assignment.course.name }}{% if assignment.due_at %} · Due {{ assignment.due_at|date:"M j, Y, g:i A" }}{% else %} · No due date provided{% endif %}</p>
+            </div>
+            <span>{{ assignment.points_possible }} pts</span>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p>No zero-point assignments.</p>
+    {% endif %}
+</details>
+
 <details class="assignment-section">
     <summary>Past due <span>({{ past_due_assignments|length }})</span></summary>
     {% if past_due_assignments %}
