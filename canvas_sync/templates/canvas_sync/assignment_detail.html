@@ -38,8 +38,8 @@
 
     <h2>Description</h2>
     <div class="description-block">
-        {% if assignment.description %}
-        {{ assignment.description|linebreaks }}
+        {% if assignment.plain_description %}
+        {{ assignment.plain_description|linebreaks }}
         {% else %}
         <p>No description was provided by Canvas.</p>
         {% endif %}

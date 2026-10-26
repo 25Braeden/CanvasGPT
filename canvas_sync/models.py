@@ -1,5 +1,9 @@
+import re
+from html import unescape
+
 from django.conf import settings
 from django.db import models
+from django.utils.html import strip_tags
 
 class CanvasConnection(models.Model):
     class SyncStatus(models.TextChoices):
@@ -97,6 +101,12 @@ class Assignment(models.Model):
 
     def __str__(self):
         return self.title
+
+    @property
+    def plain_description(self):
+        """The Canvas HTML description as plain text, one block per line."""
+        text = re.sub(r"</(p|div|h[1-6]|li)>|<br\s*/?>", "\n", self.description)
+        return unescape(strip_tags(text)).strip()
 
 
 class RubricCriterion(models.Model):
