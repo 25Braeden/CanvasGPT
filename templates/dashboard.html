@@ -94,12 +94,13 @@
     {% endif %}
 </details>
 
-<div class="sync-status {{ sync_status.level }}" role="status">
+</section>
+
+<div class="sync-status dashboard-sync-status {{ sync_status.level }}" role="status">
     <strong>Canvas sync: {{ sync_status.label }}</strong>
     <p>{{ sync_status.message }}</p>
     {% if sync_status.last_synced %}
     <p>Last synced {{ sync_status.last_synced|date:"M j, Y, g:i A" }}.</p>
     {% endif %}
 </div>
-</section>
 {% endblock %}
