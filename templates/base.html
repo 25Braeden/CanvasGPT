@@ -168,6 +168,15 @@
         .sync-status.warning { border-color: #f4c46a; background: rgba(244, 196, 106, 0.18); }
         .sync-status.error { border-color: #f4a3a3; background: rgba(244, 163, 163, 0.18); }
         .sync-status strong { display: block; margin-bottom: 0.35rem; }
+        .dashboard-sync-status {
+            position: fixed;
+            right: 1rem;
+            bottom: 1rem;
+            z-index: 1000;
+            width: min(calc(100% - 2rem), 24rem);
+            margin: 0;
+            box-shadow: 0 1rem 2.5rem var(--shadow);
+        }
         .schedule-list { display: grid; gap: 0.75rem; margin: 1rem 0; padding: 0; list-style: none; }
         .schedule-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.85rem 1rem; border: 1px solid var(--border); border-radius: 1rem; background: var(--surface-translucent); }
         .schedule-row.completed { opacity: 0.65; border-style: dashed; }

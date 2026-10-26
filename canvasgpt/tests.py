@@ -5,7 +5,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from canvas_sync.models import Assignment, Course
+from canvas_sync.models import Assignment, CanvasConnection, Course
 
 
 class DashboardAssignmentSectionsTests(TestCase):
@@ -105,6 +105,29 @@ class DashboardAssignmentSectionsTests(TestCase):
             html=False,
         )
         self.assertContains(response, "<span>0.00 pts</span>", count=3, html=True)
+
+    def test_recent_successful_connection_overrides_old_assignment_failure(self):
+        assignment = self.create_assignment(
+            "Previously failed assignment",
+            timezone.now() + timedelta(days=1),
+        )
+        Assignment.objects.filter(pk=assignment.pk).update(
+            sync_status=Assignment.SyncStatus.FAILED,
+            sync_error_message="Old sync failure",
+        )
+        CanvasConnection.objects.create(
+            user=self.user,
+            canvas_base_url="https://example.instructure.com",
+            access_token="test-token",
+            sync_status=CanvasConnection.SyncStatus.SUCCESS,
+            last_synchronized_at=timezone.now(),
+        )
+
+        response = self.client.get(reverse("dashboard"))
+
+        self.assertEqual(response.context["sync_status"]["level"], "success")
+        self.assertEqual(response.context["sync_status"]["label"], "Up to date")
+        self.assertNotContains(response, "Old sync failure")
 
     def test_dashboard_excludes_assignments_from_hidden_courses(self):
         hidden_course = Course.objects.create(
