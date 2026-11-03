@@ -292,7 +292,7 @@ class WeeklyPlanViewTests(PlannerViewTestCase):
         ):
             self.assertContains(
                 response,
-                f'<a class="button" href="{self.url}?week={target}">{label}</a>',
+                f'<a class="button" data-preserve-scroll href="{self.url}?week={target}">{label}</a>',
                 html=True,
             )
 

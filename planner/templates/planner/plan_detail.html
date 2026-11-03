@@ -42,9 +42,9 @@
 
     <h2 class="section-divider">{{ week_start|date:"M j, Y" }} – {{ week_end|date:"M j, Y" }}</h2>
     <nav class="form-actions" aria-label="Study plan week navigation">
-        <a class="button" href="{% url 'planner:plan_detail' %}?week={{ previous_week|date:'Y-m-d' }}">Previous week</a>
-        <a class="button" href="{% url 'planner:plan_detail' %}?week={{ current_week|date:'Y-m-d' }}">This week</a>
-        <a class="button" href="{% url 'planner:plan_detail' %}?week={{ next_week|date:'Y-m-d' }}">Next week</a>
+        <a class="button" data-preserve-scroll href="{% url 'planner:plan_detail' %}?week={{ previous_week|date:'Y-m-d' }}">Previous week</a>
+        <a class="button" data-preserve-scroll href="{% url 'planner:plan_detail' %}?week={{ current_week|date:'Y-m-d' }}">This week</a>
+        <a class="button" data-preserve-scroll href="{% url 'planner:plan_detail' %}?week={{ next_week|date:'Y-m-d' }}">Next week</a>
     </nav>
 
     {% for day, sessions in days %}

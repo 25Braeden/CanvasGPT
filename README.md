@@ -87,7 +87,7 @@ Signed-in students can schedule their checklist tasks around their own time:
 
 Weekly links use `?week=YYYY-MM-DD`; any valid date selects its containing Monday–Sunday week. Missing, invalid, or out-of-range values fall back to the current week in your profile timezone.
 
-With JavaScript and session storage enabled, form actions returning to the same page restore your scroll position across the site. Navigation to different pages keeps normal behavior. If an action shortens the page, the browser restores as close to the previous position as the new page height allows. Forms still work without JavaScript.
+With JavaScript and session storage enabled, form actions returning to the same page restore your scroll position across the site. **Previous week**, **This week**, and **Next week** also preserve scroll position while changing the selected week. Navigation to different pages keeps normal behavior. If an action shortens the page, the browser restores as close to the previous position as the new page height allows. Forms still work without JavaScript.
 
 The dashboard moves assignments to **Past due** when their exact deadline is reached, including deadlines earlier today. **Due soon** continues to use your configured number of days in your timezone; zero-point assignments remain separate.
 
@@ -105,4 +105,4 @@ Run the shared scroll-restoration tests (requires Node.js 18 or later; no npm de
 node --test tests/preserve-scroll.test.cjs
 ```
 
-For browser verification, scroll down a populated study week, toggle a session, and regenerate the plan: the selected week and scroll position should remain. Also check checklist actions, profile saves, and availability deletion. Week navigation should open the selected week normally, and navigation to a different page must not inherit the previous page's scroll position.
+For browser verification, scroll down a populated study week, toggle a session, and regenerate the plan: the selected week and scroll position should remain. Also check checklist actions, profile saves, and availability deletion. Click each week-navigation link and confirm the selected week changes while your scroll position remains (subject to the new page height). Navigation to a different page must not inherit the previous page's scroll position.

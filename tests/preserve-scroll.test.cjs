@@ -26,7 +26,14 @@ function browser(url = 'https://canvasgpt.test/planner/plan/', storage = new Map
         target: { method: 'post', action: url, target: '', dataset: {}, ...overrides },
         defaultPrevented: false, ...event,
     });
-    return { window, storage, scrolls, submit, show: (persisted = false) => handlers.pageshow({ persisted }) };
+    const click = (href, event = {}, linkOverrides = {}) => {
+        const link = { href, target: '', hasAttribute: () => false, ...linkOverrides };
+        handlers.click({
+            target: { closest: selector => selector === 'a[data-preserve-scroll]' ? link : null },
+            button: 0, defaultPrevented: false, ...event,
+        });
+    };
+    return { window, storage, scrolls, submit, click, show: (persisted = false) => handlers.pageshow({ persisted }) };
 }
 
 test('all POST actions restore scroll once when returning to the same page', () => {
@@ -49,6 +56,43 @@ test('canonical selected-week redirect restores position from a default plan URL
     const result = browser('https://canvasgpt.test/planner/plan/?week=2026-03-02', source.storage);
     result.show();
     assert.equal(result.scrolls.length, 1);
+});
+
+test('previous, current and next week links restore scroll at the selected destination', () => {
+    for (const week of ['2026-03-02', '2026-03-09', '2026-03-16']) {
+        const source = browser('https://canvasgpt.test/planner/plan/?week=2026-03-09');
+        const destination = `https://canvasgpt.test/planner/plan/?week=${week}`;
+        source.click(destination);
+        const result = browser(destination, source.storage);
+        result.show();
+        assert.equal(result.scrolls.length, 1);
+        assert.equal(result.scrolls[0].top, 850);
+        assert.equal(result.scrolls[0].left, 10);
+        assert.equal(result.storage.size, 0);
+    }
+});
+
+test('modified clicks and unrelated navigation do not save a scroll position', () => {
+    const week = 'https://canvasgpt.test/planner/plan/?week=2026-03-16';
+    for (const event of [
+        { ctrlKey: true }, { metaKey: true }, { shiftKey: true }, { altKey: true },
+        { button: 1 }, { defaultPrevented: true }, { target: { closest: () => null } },
+    ]) {
+        const source = browser();
+        source.click(week, event);
+        assert.equal(source.storage.size, 0);
+    }
+    for (const destination of ['https://other.test/planner/plan/',
+        'https://canvasgpt.test/dashboard/', `${week}#heading`]) {
+        const source = browser();
+        source.click(destination);
+        assert.equal(source.storage.size, 0);
+    }
+    for (const overrides of [{ target: '_blank' }, { hasAttribute: () => true }]) {
+        const source = browser();
+        source.click(week, {}, overrides);
+        assert.equal(source.storage.size, 0);
+    }
 });
 
 test('different destinations and different weeks do not inherit scroll', () => {
@@ -88,6 +132,7 @@ test('blocked storage does not break submissions or page loads', () => {
         result.window.sessionStorage[method] = () => { throw new Error('Storage blocked'); };
     }
     assert.doesNotThrow(() => result.submit());
+    assert.doesNotThrow(() => result.click('https://canvasgpt.test/planner/plan/?week=2026-03-16'));
     assert.doesNotThrow(() => result.show());
 });
 
