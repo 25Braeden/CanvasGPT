@@ -1,8 +1,10 @@
 from datetime import date, datetime, time, timedelta
+from urllib.parse import urlencode
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
@@ -139,11 +141,20 @@ def plan_detail(request):
     )
 
 
+def _back_to_week(request):
+    url = reverse('planner:plan_detail')
+    if 'week' in request.POST:
+        today = timezone.localdate(timezone=_timezone_for(request.user))
+        week = _selected_week(request.POST['week'], today)
+        url += '?' + urlencode({'week': week.isoformat()})
+    return redirect(url)
+
+
 @login_required
 @require_POST
 def plan_generate(request):
     generate_plan(request.user)
-    return redirect('planner:plan_detail')
+    return _back_to_week(request)
 
 
 @login_required
@@ -158,4 +169,4 @@ def session_toggle(request, pk):
             study_plan=session.study_plan, is_completed=False
         ).exists()
         task.save(update_fields=['is_completed'])
-    return redirect('planner:plan_detail')
+    return _back_to_week(request)

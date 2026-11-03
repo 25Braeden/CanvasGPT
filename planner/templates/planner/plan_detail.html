@@ -17,7 +17,8 @@
     <p>You haven’t added any availability, so nothing can be scheduled yet. <a href="{% url 'planner:availability_list' %}">Add availability</a></p>
     {% endif %}
     <div class="form-actions">
-        <form method="post" action="{% url 'planner:plan_generate' %}">{% csrf_token %}
+        <form method="post" action="{% url 'planner:plan_generate' %}" data-scroll-page="{% url 'planner:plan_detail' %}?week={{ week_start|date:'Y-m-d' }}">{% csrf_token %}
+            <input type="hidden" name="week" value="{{ week_start|date:'Y-m-d' }}">
             <button type="submit" class="primary">{% if plan %}Regenerate plan{% else %}Generate plan{% endif %}</button>
         </form>
         <a class="button" href="{% url 'planner:availability_list' %}">Manage availability</a>
@@ -60,7 +61,8 @@
                 </div>
             </div>
             <div class="schedule-actions">
-                <form method="post" action="{% url 'planner:session_toggle' session.pk %}">{% csrf_token %}
+                <form method="post" action="{% url 'planner:session_toggle' session.pk %}" data-scroll-page="{% url 'planner:plan_detail' %}?week={{ week_start|date:'Y-m-d' }}">{% csrf_token %}
+                    <input type="hidden" name="week" value="{{ week_start|date:'Y-m-d' }}">
                     <button type="submit">{% if session.is_completed %}Mark incomplete{% else %}Mark complete{% endif %}</button>
                 </form>
             </div>

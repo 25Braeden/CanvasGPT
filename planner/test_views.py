@@ -291,6 +291,45 @@ class WeeklyPlanViewTests(PlannerViewTestCase):
                     self.assertEqual(response.context['week_start'], datetime.date(2026, 3, 2))
                     self.assertEqual(len(response.context['days']), 7)
 
+    def test_completion_preserves_selected_week_and_updates_task(self):
+        session = self.make_session()
+        response = self.client.get(self.url, {'week': '2026-10-01'})
+        self.assertContains(
+            response, '<input type="hidden" name="week" value="2026-09-28">',
+            count=2, html=True,
+        )
+        self.assertContains(response, f'data-scroll-page="{self.url}?week=2026-09-28"', count=2)
+        response = self.client.post(
+            reverse('planner:session_toggle', args=[session.pk]), {'week': '2026-10-01'},
+        )
+        self.assertRedirects(response, self.url + '?week=2026-09-28')
+        session.refresh_from_db()
+        session.task_item.refresh_from_db()
+        self.assertTrue(session.is_completed)
+        self.assertTrue(session.task_item.is_completed)
+
+    def test_generation_preserves_selected_week(self):
+        response = self.client.post(reverse('planner:plan_generate'), {'week': '2026-12-30'})
+        self.assertRedirects(response, self.url + '?week=2026-12-28')
+
+    def test_invalid_completion_week_falls_back_without_external_redirect(self):
+        session = self.make_session()
+        now = datetime.datetime(2026, 3, 5, 12, tzinfo=datetime.timezone.utc)
+        with patch('django.utils.timezone.now', return_value=now):
+            for week in ('', 'invalid', 'https://other.test/', '9999-12-31'):
+                with self.subTest(week=week):
+                    response = self.client.post(
+                        reverse('planner:session_toggle', args=[session.pk]), {'week': week},
+                    )
+                    self.assertRedirects(response, self.url + '?week=2026-03-02')
+
+    def test_scroll_script_is_shared_across_pages(self):
+        for name in ('home', 'dashboard', 'accounts:profile', 'planner:plan_detail',
+                     'planner:availability_list', 'canvas_sync:connection'):
+            with self.subTest(page=name):
+                response = self.client.get(reverse(name))
+                self.assertContains(response, '/static/accounts/preserve-scroll.js', count=1)
+
     def test_selected_week_excludes_other_users_tasks(self):
         own = self.make_session()
         self.make_session(user=self.other, description='Private session')
