@@ -1,5 +1,6 @@
 import datetime
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -223,11 +224,15 @@ class WeeklyPlanViewTests(PlannerViewTestCase):
         # March 2 is PST; March 9 is PDT, so this week is only 167 hours.
         start = datetime.datetime(2026, 3, 2, 8, tzinfo=datetime.timezone.utc)
         end = datetime.datetime(2026, 3, 9, 7, tzinfo=datetime.timezone.utc)
-        first = self.make_session(scheduled_start=start)
+        first = self.make_session(scheduled_start=start, description='Monday session')
         plan = first.study_plan
-        last = self.make_session(plan=plan, scheduled_start=end - datetime.timedelta(minutes=1))
-        self.make_session(plan=plan, scheduled_start=start - datetime.timedelta(minutes=1))
-        self.make_session(plan=plan, scheduled_start=end)
+        last = self.make_session(
+            plan=plan, scheduled_start=end - datetime.timedelta(minutes=1), description='Sunday session',
+        )
+        self.make_session(
+            plan=plan, scheduled_start=start - datetime.timedelta(minutes=1), description='Previous week session',
+        )
+        self.make_session(plan=plan, scheduled_start=end, description='Next week session')
 
         response = self.client.get(self.url, {'week': '2026-03-05'})
 
@@ -236,6 +241,33 @@ class WeeklyPlanViewTests(PlannerViewTestCase):
         self.assertEqual(days[0], (datetime.date(2026, 3, 2), [first]))
         self.assertEqual(days[-1], (datetime.date(2026, 3, 8), [last]))
         self.assertEqual(sum(len(sessions) for _, sessions in days), 2)
+        self.assertContains(response, 'Monday session')
+        self.assertContains(response, 'Sunday session')
+        self.assertNotContains(response, 'Previous week session')
+        self.assertNotContains(response, 'Next week session')
+
+    def test_fall_dst_week_includes_both_repeated_local_times(self):
+        # October 26 starts in PDT; November 2 starts in PST (169 hours).
+        start = datetime.datetime(2026, 10, 26, 7, tzinfo=datetime.timezone.utc)
+        end = datetime.datetime(2026, 11, 2, 8, tzinfo=datetime.timezone.utc)
+        first = self.make_session(scheduled_start=start)
+        plan = first.study_plan
+        repeated = [
+            self.make_session(
+                plan=plan,
+                scheduled_start=datetime.datetime(2026, 11, 1, hour, 30, tzinfo=datetime.timezone.utc),
+            )
+            for hour in (8, 9)
+        ]
+        last = self.make_session(plan=plan, scheduled_start=end - datetime.timedelta(microseconds=1))
+        self.make_session(plan=plan, scheduled_start=end)
+
+        response = self.client.get(self.url, {'week': '2026-11-01'})
+
+        days = response.context['days']
+        self.assertEqual(days[0], (datetime.date(2026, 10, 26), [first]))
+        self.assertEqual(days[-1], (datetime.date(2026, 11, 1), [*repeated, last]))
+        self.assertEqual(sum(len(sessions) for _, sessions in days), 4)
 
     def test_empty_week_has_all_seven_dates(self):
         self.make_session()
@@ -342,6 +374,30 @@ class WeeklyPlanViewTests(PlannerViewTestCase):
         self.assertNotContains(response, 'Private session')
         self.assertNotContains(response, 'Foreign task')
 
+    def test_selected_week_ignores_inactive_and_foreign_plans_with_own_tasks(self):
+        active = self.make_session(description='Active session')
+        inactive_plan = StudyPlan.objects.create(
+            user=self.user, start_date=active.study_plan.start_date,
+            end_date=active.study_plan.end_date, is_active=False,
+        )
+        self.make_session(plan=inactive_plan, description='Inactive session')
+        foreign_plan = StudyPlan.objects.create(
+            user=self.other, start_date=active.study_plan.start_date,
+            end_date=active.study_plan.end_date,
+        )
+        self.make_session(plan=foreign_plan, description='Session on foreign plan')
+
+        response = self.client.get(self.url, {'week': '2026-10-01'})
+
+        sessions = [session for _, items in response.context['days'] for session in items]
+        self.assertEqual(sessions, [active])
+        # These are still the user's tasks, so the unscheduled list may show
+        # them; only session rows must exclude inactive and foreign plans.
+        for description in ('Inactive session', 'Session on foreign plan'):
+            self.assertNotContains(
+                response, f'<strong class="schedule-task">{description}</strong>', html=True,
+            )
+
 
 class PlanViewTests(PlannerViewTestCase):
     def test_plan_page_without_a_plan(self):
@@ -366,9 +422,13 @@ class PlanViewTests(PlannerViewTestCase):
         self.assertRedirects(response, reverse('planner:plan_detail'))
         plan = StudyPlan.objects.get(user=self.user, is_active=True)
         self.assertEqual(plan.sessions.count(), 1)
-        response = self.client.get(reverse('planner:plan_detail'))
+        # Tomorrow can be in the following week (when the test runs on Sunday).
+        session = plan.sessions.get()
+        tz = ZoneInfo(self.user.student_profile.timezone)
+        day = timezone.localdate(session.scheduled_start, timezone=tz)
+        response = self.client.get(reverse('planner:plan_detail'), {'week': day.isoformat()})
         self.assertContains(response, 'Read chapter 4')
-        day = response.context['days'][0][0]
+        self.assertIn((day, [session]), response.context['days'])
         self.assertContains(response, day.strftime('%A'))
 
     def test_plan_page_reports_unscheduled_tasks(self):
