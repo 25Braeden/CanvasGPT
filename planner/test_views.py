@@ -247,6 +247,40 @@ class WeeklyPlanViewTests(PlannerViewTestCase):
         ])
         self.assertEqual(response.context['next_week'], datetime.date(2027, 1, 4))
 
+    def test_week_navigation_and_range(self):
+        now = datetime.datetime(2026, 3, 5, 12, tzinfo=datetime.timezone.utc)
+        with patch('django.utils.timezone.now', return_value=now):
+            response = self.client.get(self.url, {'week': '2026-12-30'})
+
+        self.assertContains(response, 'Dec 28, 2026 – Jan 3, 2027')
+        for label, target in (
+            ('Previous week', '2026-12-21'),
+            ('This week', '2026-03-02'),
+            ('Next week', '2027-01-04'),
+        ):
+            self.assertContains(
+                response,
+                f'<a class="button" href="{self.url}?week={target}">{label}</a>',
+                html=True,
+            )
+
+    def test_empty_days_render_with_and_without_a_plan(self):
+        for has_plan in (False, True):
+            with self.subTest(has_plan=has_plan):
+                if has_plan:
+                    self.make_session()
+                response = self.client.get(self.url, {'week': '2026-12-30'})
+
+                self.assertContains(response, '<li>No sessions</li>', count=7, html=True)
+                for label in ('Previous week', 'This week', 'Next week'):
+                    self.assertContains(response, label)
+                for offset in range(7):
+                    day = datetime.date(2026, 12, 28) + datetime.timedelta(days=offset)
+                    heading = f'{day:%A}, {day:%b} {day.day}, {day.year}'
+                    self.assertContains(
+                        response, f'<h2 class="section-divider">{heading}</h2>', html=True,
+                    )
+
     def test_invalid_or_missing_week_uses_students_current_week(self):
         # Still Sunday in Los Angeles, even though UTC has reached Monday.
         now = datetime.datetime(2026, 3, 9, 1, tzinfo=datetime.timezone.utc)
