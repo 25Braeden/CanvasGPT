@@ -1,4 +1,5 @@
 import datetime
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -209,6 +210,64 @@ class AvailabilityViewTests(PlannerViewTestCase):
         block.refresh_from_db()
         self.assertEqual(block.weekday, AvailabilityBlock.Weekday.MONDAY)
         self.assertEqual(block.start_time, datetime.time(18, 0))
+
+
+class WeeklyPlanViewTests(PlannerViewTestCase):
+    def setUp(self):
+        super().setUp()
+        self.user.student_profile.timezone = 'America/Los_Angeles'
+        self.user.student_profile.save()
+        self.url = reverse('planner:plan_detail')
+
+    def test_local_week_boundaries_and_grouping(self):
+        # March 2 is PST; March 9 is PDT, so this week is only 167 hours.
+        start = datetime.datetime(2026, 3, 2, 8, tzinfo=datetime.timezone.utc)
+        end = datetime.datetime(2026, 3, 9, 7, tzinfo=datetime.timezone.utc)
+        first = self.make_session(scheduled_start=start)
+        plan = first.study_plan
+        last = self.make_session(plan=plan, scheduled_start=end - datetime.timedelta(minutes=1))
+        self.make_session(plan=plan, scheduled_start=start - datetime.timedelta(minutes=1))
+        self.make_session(plan=plan, scheduled_start=end)
+
+        response = self.client.get(self.url, {'week': '2026-03-05'})
+
+        days = response.context['days']
+        self.assertEqual(len(days), 7)
+        self.assertEqual(days[0], (datetime.date(2026, 3, 2), [first]))
+        self.assertEqual(days[-1], (datetime.date(2026, 3, 8), [last]))
+        self.assertEqual(sum(len(sessions) for _, sessions in days), 2)
+
+    def test_empty_week_has_all_seven_dates(self):
+        self.make_session()
+        response = self.client.get(self.url, {'week': '2026-12-30'})
+        days = response.context['days']
+        self.assertEqual(days, [
+            (datetime.date(2026, 12, 28) + datetime.timedelta(days=i), [])
+            for i in range(7)
+        ])
+        self.assertEqual(response.context['next_week'], datetime.date(2027, 1, 4))
+
+    def test_invalid_or_missing_week_uses_students_current_week(self):
+        # Still Sunday in Los Angeles, even though UTC has reached Monday.
+        now = datetime.datetime(2026, 3, 9, 1, tzinfo=datetime.timezone.utc)
+        with patch('django.utils.timezone.now', return_value=now):
+            for value in (None, '', 'nonsense', '2026-02-30', '20260309', '0001-01-01', '9999-12-31'):
+                with self.subTest(week=value):
+                    response = self.client.get(self.url, {} if value is None else {'week': value})
+                    self.assertEqual(response.context['week_start'], datetime.date(2026, 3, 2))
+                    self.assertEqual(len(response.context['days']), 7)
+
+    def test_selected_week_excludes_other_users_tasks(self):
+        own = self.make_session()
+        self.make_session(user=self.other, description='Private session')
+        self.make_session(user=self.other, plan=own.study_plan, description='Foreign task')
+
+        response = self.client.get(self.url, {'week': '2026-10-01'})
+
+        sessions = [session for _, items in response.context['days'] for session in items]
+        self.assertEqual(sessions, [own])
+        self.assertNotContains(response, 'Private session')
+        self.assertNotContains(response, 'Foreign task')
 
 
 class PlanViewTests(PlannerViewTestCase):
