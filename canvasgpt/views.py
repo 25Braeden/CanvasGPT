@@ -59,7 +59,8 @@ def categorize_assignments(assignments, profile):
     except ZoneInfoNotFoundError:
         student_timezone = timezone.get_current_timezone()
 
-    today = timezone.localdate(timezone=student_timezone)
+    now = timezone.now()
+    today = timezone.localdate(now, timezone=student_timezone)
     due_soon_end = today + timedelta(days=profile.due_soon_days)
     due_soon = []
     due_later = []
@@ -79,7 +80,7 @@ def categorize_assignments(assignments, profile):
             assignment.due_at,
             student_timezone,
         ).date()
-        if due_date < today:
+        if assignment.due_at <= now:
             past_due.append(assignment)
         elif due_date <= due_soon_end:
             due_soon.append(assignment)
