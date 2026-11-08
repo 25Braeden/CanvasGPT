@@ -1,8 +1,10 @@
-from itertools import groupby
+from datetime import date, datetime, time, timedelta
+from urllib.parse import urlencode
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
@@ -85,28 +87,53 @@ def availability_delete(request, pk):
     return redirect('planner:availability_list')
 
 
+def _selected_week(value, today):
+    """Resolve an ISO date to Monday, falling back for unsafe date ranges."""
+    try:
+        selected = date.fromisoformat(value)
+        if selected.isoformat() != value or not 2 <= selected.year <= 9998:
+            raise ValueError
+    except (TypeError, ValueError):
+        selected = today
+    return selected - timedelta(days=selected.weekday())
+
+
 @login_required
 def plan_detail(request):
     tz = _timezone_for(request.user)
+    today = timezone.localdate(timezone=tz)
+    week_start = _selected_week(request.GET.get('week'), today)
+    next_week = week_start + timedelta(days=7)
+    # Construct each local midnight separately: a DST week need not be 168 hours.
+    starts_at = timezone.make_aware(datetime.combine(week_start, time.min), tz)
+    ends_at = timezone.make_aware(datetime.combine(next_week, time.min), tz)
     plan = StudyPlan.objects.filter(user=request.user, is_active=True).first()
-    days = []
+    sessions_by_day = {
+        week_start + timedelta(days=offset): [] for offset in range(7)
+    }
     if plan:
         sessions = plan.sessions.select_related(
             'task_item', 'task_item__assignment'
-        ).filter(task_item__user=request.user)
-        days = [
-            (day, list(day_sessions))
-            for day, day_sessions in groupby(
-                sessions,
-                key=lambda s: timezone.localtime(s.scheduled_start, tz).date(),
-            )
-        ]
+        ).filter(
+            task_item__user=request.user,
+            scheduled_start__gte=starts_at,
+            scheduled_start__lt=ends_at,
+        ).order_by('scheduled_start', 'pk')
+        for session in sessions:
+            day = timezone.localtime(session.scheduled_start, tz).date()
+            sessions_by_day[day].append(session)
+    days = list(sessions_by_day.items())
     return render(
         request,
         'planner/plan_detail.html',
         {
             'plan': plan,
             'days': days,
+            'week_start': week_start,
+            'week_end': next_week - timedelta(days=1),
+            'previous_week': week_start - timedelta(days=7),
+            'next_week': next_week,
+            'current_week': today - timedelta(days=today.weekday()),
             'unscheduled': find_unscheduled(request.user, plan),
             'student_timezone': tz,
             'has_availability': AvailabilityBlock.objects.filter(user=request.user).exists(),
@@ -114,11 +141,20 @@ def plan_detail(request):
     )
 
 
+def _back_to_week(request):
+    url = reverse('planner:plan_detail')
+    if 'week' in request.POST:
+        today = timezone.localdate(timezone=_timezone_for(request.user))
+        week = _selected_week(request.POST['week'], today)
+        url += '?' + urlencode({'week': week.isoformat()})
+    return redirect(url)
+
+
 @login_required
 @require_POST
 def plan_generate(request):
     generate_plan(request.user)
-    return redirect('planner:plan_detail')
+    return _back_to_week(request)
 
 
 @login_required
@@ -133,4 +169,4 @@ def session_toggle(request, pk):
             study_plan=session.study_plan, is_completed=False
         ).exists()
         task.save(update_fields=['is_completed'])
-    return redirect('planner:plan_detail')
+    return _back_to_week(request)

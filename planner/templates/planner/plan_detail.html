@@ -17,7 +17,8 @@
     <p>You haven’t added any availability, so nothing can be scheduled yet. <a href="{% url 'planner:availability_list' %}">Add availability</a></p>
     {% endif %}
     <div class="form-actions">
-        <form method="post" action="{% url 'planner:plan_generate' %}">{% csrf_token %}
+        <form method="post" action="{% url 'planner:plan_generate' %}" data-scroll-page="{% url 'planner:plan_detail' %}?week={{ week_start|date:'Y-m-d' }}">{% csrf_token %}
+            <input type="hidden" name="week" value="{{ week_start|date:'Y-m-d' }}">
             <button type="submit" class="primary">{% if plan %}Regenerate plan{% else %}Generate plan{% endif %}</button>
         </form>
         <a class="button" href="{% url 'planner:availability_list' %}">Manage availability</a>
@@ -39,7 +40,13 @@
     </div>
     {% endif %}
 
-    {% if plan %}
+    <h2 class="section-divider">{{ week_start|date:"M j, Y" }} – {{ week_end|date:"M j, Y" }}</h2>
+    <nav class="form-actions" aria-label="Study plan week navigation">
+        <a class="button" data-preserve-scroll href="{% url 'planner:plan_detail' %}?week={{ previous_week|date:'Y-m-d' }}">Previous week</a>
+        <a class="button" data-preserve-scroll href="{% url 'planner:plan_detail' %}?week={{ current_week|date:'Y-m-d' }}">This week</a>
+        <a class="button" data-preserve-scroll href="{% url 'planner:plan_detail' %}?week={{ next_week|date:'Y-m-d' }}">Next week</a>
+    </nav>
+
     {% for day, sessions in days %}
     <h2 class="section-divider">{{ day|date:"l, M j, Y" }}</h2>
     <ul class="schedule-list">
@@ -54,17 +61,17 @@
                 </div>
             </div>
             <div class="schedule-actions">
-                <form method="post" action="{% url 'planner:session_toggle' session.pk %}">{% csrf_token %}
+                <form method="post" action="{% url 'planner:session_toggle' session.pk %}" data-scroll-page="{% url 'planner:plan_detail' %}?week={{ week_start|date:'Y-m-d' }}">{% csrf_token %}
+                    <input type="hidden" name="week" value="{{ week_start|date:'Y-m-d' }}">
                     <button type="submit">{% if session.is_completed %}Mark incomplete{% else %}Mark complete{% endif %}</button>
                 </form>
             </div>
         </li>
+        {% empty %}
+        <li>No sessions</li>
         {% endfor %}
     </ul>
-    {% empty %}
-    <p class="section-divider">No sessions were scheduled in this plan.</p>
     {% endfor %}
-    {% endif %}
 </section>
 {% endtimezone %}
 {% endblock %}

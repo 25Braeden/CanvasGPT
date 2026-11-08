@@ -1,4 +1,6 @@
 import datetime
+from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -211,6 +213,192 @@ class AvailabilityViewTests(PlannerViewTestCase):
         self.assertEqual(block.start_time, datetime.time(18, 0))
 
 
+class WeeklyPlanViewTests(PlannerViewTestCase):
+    def setUp(self):
+        super().setUp()
+        self.user.student_profile.timezone = 'America/Los_Angeles'
+        self.user.student_profile.save()
+        self.url = reverse('planner:plan_detail')
+
+    def test_local_week_boundaries_and_grouping(self):
+        # March 2 is PST; March 9 is PDT, so this week is only 167 hours.
+        start = datetime.datetime(2026, 3, 2, 8, tzinfo=datetime.timezone.utc)
+        end = datetime.datetime(2026, 3, 9, 7, tzinfo=datetime.timezone.utc)
+        first = self.make_session(scheduled_start=start, description='Monday session')
+        plan = first.study_plan
+        last = self.make_session(
+            plan=plan, scheduled_start=end - datetime.timedelta(minutes=1), description='Sunday session',
+        )
+        self.make_session(
+            plan=plan, scheduled_start=start - datetime.timedelta(minutes=1), description='Previous week session',
+        )
+        self.make_session(plan=plan, scheduled_start=end, description='Next week session')
+
+        response = self.client.get(self.url, {'week': '2026-03-05'})
+
+        days = response.context['days']
+        self.assertEqual(len(days), 7)
+        self.assertEqual(days[0], (datetime.date(2026, 3, 2), [first]))
+        self.assertEqual(days[-1], (datetime.date(2026, 3, 8), [last]))
+        self.assertEqual(sum(len(sessions) for _, sessions in days), 2)
+        self.assertContains(response, 'Monday session')
+        self.assertContains(response, 'Sunday session')
+        self.assertNotContains(response, 'Previous week session')
+        self.assertNotContains(response, 'Next week session')
+
+    def test_fall_dst_week_includes_both_repeated_local_times(self):
+        # October 26 starts in PDT; November 2 starts in PST (169 hours).
+        start = datetime.datetime(2026, 10, 26, 7, tzinfo=datetime.timezone.utc)
+        end = datetime.datetime(2026, 11, 2, 8, tzinfo=datetime.timezone.utc)
+        first = self.make_session(scheduled_start=start)
+        plan = first.study_plan
+        repeated = [
+            self.make_session(
+                plan=plan,
+                scheduled_start=datetime.datetime(2026, 11, 1, hour, 30, tzinfo=datetime.timezone.utc),
+            )
+            for hour in (8, 9)
+        ]
+        last = self.make_session(plan=plan, scheduled_start=end - datetime.timedelta(microseconds=1))
+        self.make_session(plan=plan, scheduled_start=end)
+
+        response = self.client.get(self.url, {'week': '2026-11-01'})
+
+        days = response.context['days']
+        self.assertEqual(days[0], (datetime.date(2026, 10, 26), [first]))
+        self.assertEqual(days[-1], (datetime.date(2026, 11, 1), [*repeated, last]))
+        self.assertEqual(sum(len(sessions) for _, sessions in days), 4)
+
+    def test_empty_week_has_all_seven_dates(self):
+        self.make_session()
+        response = self.client.get(self.url, {'week': '2026-12-30'})
+        days = response.context['days']
+        self.assertEqual(days, [
+            (datetime.date(2026, 12, 28) + datetime.timedelta(days=i), [])
+            for i in range(7)
+        ])
+        self.assertEqual(response.context['next_week'], datetime.date(2027, 1, 4))
+
+    def test_week_navigation_and_range(self):
+        now = datetime.datetime(2026, 3, 5, 12, tzinfo=datetime.timezone.utc)
+        with patch('django.utils.timezone.now', return_value=now):
+            response = self.client.get(self.url, {'week': '2026-12-30'})
+
+        self.assertContains(response, 'Dec 28, 2026 – Jan 3, 2027')
+        for label, target in (
+            ('Previous week', '2026-12-21'),
+            ('This week', '2026-03-02'),
+            ('Next week', '2027-01-04'),
+        ):
+            self.assertContains(
+                response,
+                f'<a class="button" data-preserve-scroll href="{self.url}?week={target}">{label}</a>',
+                html=True,
+            )
+
+    def test_empty_days_render_with_and_without_a_plan(self):
+        for has_plan in (False, True):
+            with self.subTest(has_plan=has_plan):
+                if has_plan:
+                    self.make_session()
+                response = self.client.get(self.url, {'week': '2026-12-30'})
+
+                self.assertContains(response, '<li>No sessions</li>', count=7, html=True)
+                for label in ('Previous week', 'This week', 'Next week'):
+                    self.assertContains(response, label)
+                for offset in range(7):
+                    day = datetime.date(2026, 12, 28) + datetime.timedelta(days=offset)
+                    heading = f'{day:%A}, {day:%b} {day.day}, {day.year}'
+                    self.assertContains(
+                        response, f'<h2 class="section-divider">{heading}</h2>', html=True,
+                    )
+
+    def test_invalid_or_missing_week_uses_students_current_week(self):
+        # Still Sunday in Los Angeles, even though UTC has reached Monday.
+        now = datetime.datetime(2026, 3, 9, 1, tzinfo=datetime.timezone.utc)
+        with patch('django.utils.timezone.now', return_value=now):
+            for value in (None, '', 'nonsense', '2026-02-30', '20260309', '0001-01-01', '9999-12-31'):
+                with self.subTest(week=value):
+                    response = self.client.get(self.url, {} if value is None else {'week': value})
+                    self.assertEqual(response.context['week_start'], datetime.date(2026, 3, 2))
+                    self.assertEqual(len(response.context['days']), 7)
+
+    def test_completion_preserves_selected_week_and_updates_task(self):
+        session = self.make_session()
+        response = self.client.get(self.url, {'week': '2026-10-01'})
+        self.assertContains(
+            response, '<input type="hidden" name="week" value="2026-09-28">',
+            count=2, html=True,
+        )
+        self.assertContains(response, f'data-scroll-page="{self.url}?week=2026-09-28"', count=2)
+        response = self.client.post(
+            reverse('planner:session_toggle', args=[session.pk]), {'week': '2026-10-01'},
+        )
+        self.assertRedirects(response, self.url + '?week=2026-09-28')
+        session.refresh_from_db()
+        session.task_item.refresh_from_db()
+        self.assertTrue(session.is_completed)
+        self.assertTrue(session.task_item.is_completed)
+
+    def test_generation_preserves_selected_week(self):
+        response = self.client.post(reverse('planner:plan_generate'), {'week': '2026-12-30'})
+        self.assertRedirects(response, self.url + '?week=2026-12-28')
+
+    def test_invalid_completion_week_falls_back_without_external_redirect(self):
+        session = self.make_session()
+        now = datetime.datetime(2026, 3, 5, 12, tzinfo=datetime.timezone.utc)
+        with patch('django.utils.timezone.now', return_value=now):
+            for week in ('', 'invalid', 'https://other.test/', '9999-12-31'):
+                with self.subTest(week=week):
+                    response = self.client.post(
+                        reverse('planner:session_toggle', args=[session.pk]), {'week': week},
+                    )
+                    self.assertRedirects(response, self.url + '?week=2026-03-02')
+
+    def test_scroll_script_is_shared_across_pages(self):
+        for name in ('home', 'dashboard', 'accounts:profile', 'planner:plan_detail',
+                     'planner:availability_list', 'canvas_sync:connection'):
+            with self.subTest(page=name):
+                response = self.client.get(reverse(name))
+                self.assertContains(response, '/static/accounts/preserve-scroll.js', count=1)
+
+    def test_selected_week_excludes_other_users_tasks(self):
+        own = self.make_session()
+        self.make_session(user=self.other, description='Private session')
+        self.make_session(user=self.other, plan=own.study_plan, description='Foreign task')
+
+        response = self.client.get(self.url, {'week': '2026-10-01'})
+
+        sessions = [session for _, items in response.context['days'] for session in items]
+        self.assertEqual(sessions, [own])
+        self.assertNotContains(response, 'Private session')
+        self.assertNotContains(response, 'Foreign task')
+
+    def test_selected_week_ignores_inactive_and_foreign_plans_with_own_tasks(self):
+        active = self.make_session(description='Active session')
+        inactive_plan = StudyPlan.objects.create(
+            user=self.user, start_date=active.study_plan.start_date,
+            end_date=active.study_plan.end_date, is_active=False,
+        )
+        self.make_session(plan=inactive_plan, description='Inactive session')
+        foreign_plan = StudyPlan.objects.create(
+            user=self.other, start_date=active.study_plan.start_date,
+            end_date=active.study_plan.end_date,
+        )
+        self.make_session(plan=foreign_plan, description='Session on foreign plan')
+
+        response = self.client.get(self.url, {'week': '2026-10-01'})
+
+        sessions = [session for _, items in response.context['days'] for session in items]
+        self.assertEqual(sessions, [active])
+        # These are still the user's tasks, so the unscheduled list may show
+        # them; only session rows must exclude inactive and foreign plans.
+        for description in ('Inactive session', 'Session on foreign plan'):
+            self.assertNotContains(
+                response, f'<strong class="schedule-task">{description}</strong>', html=True,
+            )
+
+
 class PlanViewTests(PlannerViewTestCase):
     def test_plan_page_without_a_plan(self):
         response = self.client.get(reverse('planner:plan_detail'))
@@ -234,9 +422,13 @@ class PlanViewTests(PlannerViewTestCase):
         self.assertRedirects(response, reverse('planner:plan_detail'))
         plan = StudyPlan.objects.get(user=self.user, is_active=True)
         self.assertEqual(plan.sessions.count(), 1)
-        response = self.client.get(reverse('planner:plan_detail'))
+        # Tomorrow can be in the following week (when the test runs on Sunday).
+        session = plan.sessions.get()
+        tz = ZoneInfo(self.user.student_profile.timezone)
+        day = timezone.localdate(session.scheduled_start, timezone=tz)
+        response = self.client.get(reverse('planner:plan_detail'), {'week': day.isoformat()})
         self.assertContains(response, 'Read chapter 4')
-        day = response.context['days'][0][0]
+        self.assertIn((day, [session]), response.context['days'])
         self.assertContains(response, day.strftime('%A'))
 
     def test_plan_page_reports_unscheduled_tasks(self):
