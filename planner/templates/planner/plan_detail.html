@@ -24,6 +24,18 @@
         <a class="button" href="{% url 'planner:availability_list' %}">Manage availability</a>
     </div>
 
+    {% if plan_summary %}
+    <section aria-labelledby="plan-summary-heading">
+        <h2 id="plan-summary-heading" class="section-divider">Entire active plan</h2>
+        <p>
+            <strong>{{ plan_summary.scheduled_unfinished_minutes }} min</strong> scheduled unfinished ·
+            <strong>{{ plan_summary.completed_session_minutes }} min</strong> completed sessions ·
+            <strong>{{ plan_summary.unscheduled_task_count }}</strong> task{{ plan_summary.unscheduled_task_count|pluralize }} not scheduled
+        </p>
+        <p class="schedule-meta">Totals cover your entire active plan, not just the week below.</p>
+    </section>
+    {% endif %}
+
     {% if unscheduled %}
     <div class="sync-status warning section-divider" role="status">
         <strong>Couldn’t schedule {{ unscheduled|length }} task{{ unscheduled|length|pluralize }}</strong>

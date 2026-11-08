@@ -427,6 +427,23 @@ class PlanSummaryTests(PlannerViewTestCase):
                 response = self.client.get(reverse('planner:plan_detail'), {'week': week})
                 self.assertEqual(response.context['plan_summary'], expected)
                 self.assertEqual(len(response.context['unscheduled']), 1)
+                self.assertContains(response, 'Entire active plan')
+                self.assertContains(
+                    response,
+                    '<p><strong>75 min</strong> scheduled unfinished · '
+                    '<strong>30 min</strong> completed sessions · '
+                    '<strong>1</strong> task not scheduled</p>',
+                    html=True,
+                )
+                self.assertContains(
+                    response,
+                    'Totals cover your entire active plan, not just the week below.',
+                )
+                content = response.content.decode()
+                self.assertLess(
+                    content.index('id="plan-summary-heading"'),
+                    content.index('aria-label="Study plan week navigation"'),
+                )
 
     def test_summary_excludes_inactive_foreign_and_cross_linked_records(self):
         own = self.make_session()
@@ -461,7 +478,9 @@ class PlanSummaryTests(PlannerViewTestCase):
 
     def test_no_plan_has_no_summary_and_empty_plan_has_zero_totals(self):
         url = reverse('planner:plan_detail')
-        self.assertIsNone(self.client.get(url).context['plan_summary'])
+        response = self.client.get(url)
+        self.assertIsNone(response.context['plan_summary'])
+        self.assertNotContains(response, 'id="plan-summary-heading"')
         StudyPlan.objects.create(
             user=self.user, start_date=timezone.localdate(), end_date=timezone.localdate(),
         )
