@@ -45,7 +45,13 @@
                 <strong>{{ item.task.description }}</strong>
                 ({{ item.task.estimated_minutes }} min) for
                 <a href="{% url 'canvas_sync:assignment_detail' item.task.assignment.pk %}">{{ item.task.assignment.title }}</a>
-                <div class="schedule-meta">{{ item.reason }}</div>
+                <div class="schedule-meta">
+                    {{ item.reason }}
+                    {% with next_step=item.next_step %}
+                    <a href="{{ next_step.url }}">{{ next_step.label }}</a>
+                    {% if next_step.hint %}{{ next_step.hint }}{% endif %}
+                    {% endwith %}
+                </div>
             </li>
             {% endfor %}
         </ul>

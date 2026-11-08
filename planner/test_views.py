@@ -498,6 +498,45 @@ class PlanSummaryTests(PlannerViewTestCase):
         self.assertEqual(summary['completed_session_minutes'], 30)
 
 
+class UnscheduledWarningLinkTests(PlannerViewTestCase):
+    def test_warning_actions_match_each_reason_and_assignment(self):
+        now = timezone.now()
+        StudyPlan.objects.create(
+            user=self.user, start_date=now.date(), end_date=now.date(),
+        )
+        cases = (
+            (None, 'no due date', 'Review assignment'),
+            (now - datetime.timedelta(days=1), 'already past due', 'Review assignment'),
+            (now + datetime.timedelta(days=7), 'Not in your current plan', 'Adjust availability'),
+        )
+        for index, (due_at, reason, label) in enumerate(cases):
+            with self.subTest(reason=reason):
+                assignment = Assignment.objects.create(
+                    course=self.course, canvas_assignment_id=8000 + index,
+                    title=f'Assignment {index}', due_at=due_at,
+                )
+                task = TaskItem.objects.create(
+                    user=self.user, assignment=assignment, description=f'Task {index}',
+                )
+                response = self.client.get(reverse('planner:plan_detail'))
+                # Inspect this warning row, not unrelated navigation links.
+                row = response.content.decode().split(f'<strong>{task.description}</strong>')[1]
+                row = row.split('</li>')[0]
+                self.assertIn(reason, row)
+                target = (
+                    reverse('canvas_sync:assignment_detail', args=[assignment.pk])
+                    if label == 'Review assignment'
+                    else reverse('planner:availability_list')
+                )
+                self.assertIn(f'<a href="{target}">{label}</a>', row)
+                if label == 'Adjust availability':
+                    self.assertIn('or the task was added after the plan was generated', row)
+                    self.assertIn('Regenerate your plan after changing availability or adding tasks.', row)
+                else:
+                    self.assertNotIn('Adjust availability', row)
+                task.delete()
+
+
 class PlanViewTests(PlannerViewTestCase):
     def test_plan_page_without_a_plan(self):
         response = self.client.get(reverse('planner:plan_detail'))
