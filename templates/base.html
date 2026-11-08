@@ -1,3 +1,4 @@
+{% load static %}
 <!doctype html>
 <html lang="en">
 <head>
@@ -215,5 +216,6 @@
         </header>
         <main>{% block content %}{% endblock %}</main>
     </div>
+    <script src="{% static 'accounts/preserve-scroll.js' %}" defer></script>
 </body>
 </html>
