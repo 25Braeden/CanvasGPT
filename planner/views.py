@@ -3,6 +3,7 @@ from urllib.parse import urlencode
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
+from django.db.models import F, Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -111,11 +112,31 @@ def plan_detail(request):
     sessions_by_day = {
         week_start + timedelta(days=offset): [] for offset in range(7)
     }
+    unscheduled = find_unscheduled(request.user, plan)
+    plan_summary = None
     if plan:
-        sessions = plan.sessions.select_related(
+        plan_sessions = plan.sessions.filter(
+            task_item__user=request.user,
+            task_item__assignment__course__user=request.user,
+        )
+        duration = F('scheduled_end') - F('scheduled_start')
+        totals = plan_sessions.aggregate(
+            unfinished=Sum(duration, filter=Q(is_completed=False)),
+            completed=Sum(duration, filter=Q(is_completed=True)),
+        )
+        # These totals cover the whole active plan, independent of week navigation.
+        plan_summary = {
+            'scheduled_unfinished_minutes': int(
+                (totals['unfinished'] or timedelta()).total_seconds() // 60
+            ),
+            'completed_session_minutes': int(
+                (totals['completed'] or timedelta()).total_seconds() // 60
+            ),
+            'unscheduled_task_count': len(unscheduled),
+        }
+        sessions = plan_sessions.select_related(
             'task_item', 'task_item__assignment'
         ).filter(
-            task_item__user=request.user,
             scheduled_start__gte=starts_at,
             scheduled_start__lt=ends_at,
         ).order_by('scheduled_start', 'pk')
@@ -134,7 +155,8 @@ def plan_detail(request):
             'previous_week': week_start - timedelta(days=7),
             'next_week': next_week,
             'current_week': today - timedelta(days=today.weekday()),
-            'unscheduled': find_unscheduled(request.user, plan),
+            'unscheduled': unscheduled,
+            'plan_summary': plan_summary,
             'student_timezone': tz,
             'has_availability': AvailabilityBlock.objects.filter(user=request.user).exists(),
         },

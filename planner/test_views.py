@@ -399,6 +399,86 @@ class WeeklyPlanViewTests(PlannerViewTestCase):
             )
 
 
+class PlanSummaryTests(PlannerViewTestCase):
+    def test_totals_cover_entire_active_plan_and_use_session_durations(self):
+        first = self.make_session()
+        plan = first.study_plan
+        # Split one task across weeks; its estimate must not determine totals.
+        first.task_item.estimated_minutes = 999
+        first.task_item.save()
+        PlanSession.objects.create(
+            study_plan=plan,
+            task_item=first.task_item,
+            scheduled_start=first.scheduled_start + datetime.timedelta(days=7),
+            scheduled_end=first.scheduled_start + datetime.timedelta(days=7, minutes=45),
+        )
+        self.make_session(plan=plan, is_completed=True)
+        TaskItem.objects.create(
+            user=self.user, assignment=self.assignment, description='Not scheduled',
+        )
+        expected = {
+            'scheduled_unfinished_minutes': 75,
+            'completed_session_minutes': 30,
+            'unscheduled_task_count': 1,
+        }
+
+        for week in ('2026-10-01', '2026-10-08', '2026-12-30'):
+            with self.subTest(week=week):
+                response = self.client.get(reverse('planner:plan_detail'), {'week': week})
+                self.assertEqual(response.context['plan_summary'], expected)
+                self.assertEqual(len(response.context['unscheduled']), 1)
+
+    def test_summary_excludes_inactive_foreign_and_cross_linked_records(self):
+        own = self.make_session()
+        inactive = StudyPlan.objects.create(
+            user=self.user, start_date=own.study_plan.start_date,
+            end_date=own.study_plan.end_date, is_active=False,
+        )
+        self.make_session(plan=inactive, is_completed=True)
+        other_course = Course.objects.create(
+            user=self.other, canvas_course_id=990, name='Private course',
+        )
+        other_assignment = Assignment.objects.create(
+            course=other_course, canvas_assignment_id=9900, title='Private assignment',
+        )
+        self.make_session(user=self.other, assignment=other_assignment)
+        self.make_session(
+            user=self.other, assignment=other_assignment, plan=own.study_plan,
+        )
+        self.make_session(assignment=other_assignment, plan=own.study_plan)
+        TaskItem.objects.create(
+            user=self.other, assignment=other_assignment, description='Private task',
+        )
+        # An own task in an inactive plan is still unscheduled in the active plan.
+        expected = {
+            'scheduled_unfinished_minutes': 30,
+            'completed_session_minutes': 0,
+            'unscheduled_task_count': 1,
+        }
+        response = self.client.get(reverse('planner:plan_detail'))
+        self.assertEqual(response.context['plan_summary'], expected)
+        self.assertEqual(len(response.context['unscheduled']), 1)
+
+    def test_no_plan_has_no_summary_and_empty_plan_has_zero_totals(self):
+        url = reverse('planner:plan_detail')
+        self.assertIsNone(self.client.get(url).context['plan_summary'])
+        StudyPlan.objects.create(
+            user=self.user, start_date=timezone.localdate(), end_date=timezone.localdate(),
+        )
+        self.assertEqual(self.client.get(url).context['plan_summary'], {
+            'scheduled_unfinished_minutes': 0,
+            'completed_session_minutes': 0,
+            'unscheduled_task_count': 0,
+        })
+
+    def test_completion_moves_minutes_between_totals(self):
+        session = self.make_session()
+        self.client.post(reverse('planner:session_toggle', args=[session.pk]))
+        summary = self.client.get(reverse('planner:plan_detail')).context['plan_summary']
+        self.assertEqual(summary['scheduled_unfinished_minutes'], 0)
+        self.assertEqual(summary['completed_session_minutes'], 30)
+
+
 class PlanViewTests(PlannerViewTestCase):
     def test_plan_page_without_a_plan(self):
         response = self.client.get(reverse('planner:plan_detail'))
