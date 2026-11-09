@@ -9,8 +9,8 @@ class AvailabilityBlockForm(forms.ModelForm):
         fields = ['recurrence', 'date', 'weekday', 'start_time', 'end_time']
         labels = {
             'recurrence': 'Repeats',
-            'date': 'Date (one-time only)',
-            'weekday': 'Weekday (weekly only)',
+            'date': 'Date',
+            'weekday': 'Weekday',
             'start_time': 'Start time',
             'end_time': 'End time',
         }
@@ -19,19 +19,29 @@ class AvailabilityBlockForm(forms.ModelForm):
             'weekday': '',
         }
         widgets = {
-            'date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
-            'start_time': forms.TimeInput(attrs={'type': 'time'}, format='%H:%M'),
-            'end_time': forms.TimeInput(attrs={'type': 'time'}, format='%H:%M'),
+            'date': forms.DateInput(
+                attrs={'type': 'date'},
+                format='%Y-%m-%d',
+            ),
+            'start_time': forms.TimeInput(
+                attrs={'type': 'time'},
+                format='%H:%M',
+            ),
+            'end_time': forms.TimeInput(
+                attrs={'type': 'time'},
+                format='%H:%M',
+            ),
         }
 
     def clean(self):
         cleaned_data = super().clean()
-        # Only the field that matches the chosen repeat option is kept, so a
-        # stale value left in the other field never trips the model rules.
+
         recurrence = cleaned_data.get('recurrence')
+
         if recurrence == AvailabilityBlock.Recurrence.WEEKLY:
             cleaned_data['date'] = None
+
         elif recurrence == AvailabilityBlock.Recurrence.NONE:
             cleaned_data['weekday'] = None
-        return cleaned_data
 
+        return cleaned_data
