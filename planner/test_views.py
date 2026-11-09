@@ -153,6 +153,76 @@ class AvailabilityViewTests(PlannerViewTestCase):
 
         self.assertEqual(AvailabilityBlock.objects.get().user, self.user)
 
+    def test_add_form_shows_timezone_and_availability_help(self):
+        self.user.student_profile.timezone = 'America/New_York'
+        self.user.student_profile.save()
+
+        response = self.client.get(
+            reverse('planner:availability_add')
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'America/New_York')
+        self.assertContains(
+            response,
+            'Overnight availability should be entered as two separate blocks.',
+        )
+        self.assertContains(response, 'id="weekday-field"')
+        self.assertContains(response, 'id="date-field"')
+
+    def test_edit_form_shows_timezone_and_both_fallback_fields(self):
+        self.user.student_profile.timezone = 'America/New_York'
+        self.user.student_profile.save()
+
+        block = self.make_block()
+
+        response = self.client.get(
+            reverse(
+                'planner:availability_edit',
+                args=[block.pk],
+            )
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'America/New_York')
+        self.assertContains(response, 'name="weekday"')
+        self.assertContains(response, 'name="date"')
+
+    def test_invalid_time_range_shows_useful_error(self):
+        response = self.client.post(
+            reverse('planner:availability_add'),
+            {
+                'recurrence': 'weekly',
+                'weekday': AvailabilityBlock.Weekday.MONDAY,
+                'start_time': '20:00',
+                'end_time': '18:00',
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertContains(
+            response,
+            'End time must be after start time.',
+            status_code=400,
+        )
+
+    def test_validation_error_keeps_recurrence_selection(self):
+        response = self.client.post(
+            reverse('planner:availability_add'),
+            {
+                'recurrence': 'none',
+                'date': '',
+                'start_time': '09:00',
+                'end_time': '10:00',
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.context['form']['recurrence'].value(),
+            'none',
+        )
+
     def test_edit_block(self):
         block = self.make_block()
 

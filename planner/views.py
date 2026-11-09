@@ -59,7 +59,11 @@ def availability_add(request):
     return render(
         request,
         'planner/availability_form.html',
-        {'form': form, 'is_new': True},
+        {
+            'form': form,
+            'is_new': True,
+            'student_timezone': _timezone_for(request.user),
+            },
         status=status,
     )
 
@@ -75,7 +79,11 @@ def availability_edit(request, pk):
     return render(
         request,
         'planner/availability_form.html',
-        {'form': form, 'is_new': False},
+        {
+            'form': form,
+            'is_new': False,
+            'student_timezone': _timezone_for(request.user),
+            },
         status=status,
     )
 
