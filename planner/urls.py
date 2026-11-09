@@ -11,5 +11,6 @@ urlpatterns = [
     path('availability/<int:pk>/delete/', views.availability_delete, name='availability_delete'),
     path('plan/', views.plan_detail, name='plan_detail'),
     path('plan/generate/', views.plan_generate, name='plan_generate'),
+    path('plan/export.ics', views.plan_export, name='plan_export'),
     path('sessions/<int:pk>/toggle/', views.session_toggle, name='session_toggle'),
 ]
