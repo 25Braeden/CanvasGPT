@@ -469,6 +469,276 @@ class WeeklyPlanViewTests(PlannerViewTestCase):
             )
 
 
+class PlanSummaryTests(PlannerViewTestCase):
+    def test_totals_cover_entire_active_plan_and_use_session_durations(self):
+        first = self.make_session()
+        plan = first.study_plan
+        # Split one task across weeks; its estimate must not determine totals.
+        first.task_item.estimated_minutes = 999
+        first.task_item.save()
+        PlanSession.objects.create(
+            study_plan=plan,
+            task_item=first.task_item,
+            scheduled_start=first.scheduled_start + datetime.timedelta(days=7),
+            scheduled_end=first.scheduled_start + datetime.timedelta(days=7, minutes=45),
+        )
+        self.make_session(plan=plan, is_completed=True)
+        TaskItem.objects.create(
+            user=self.user, assignment=self.assignment, description='Not scheduled',
+        )
+        expected = {
+            'scheduled_unfinished_minutes': 75,
+            'completed_session_minutes': 30,
+            'unscheduled_task_count': 1,
+        }
+
+        for week in ('2026-10-01', '2026-10-08', '2026-12-30'):
+            with self.subTest(week=week):
+                response = self.client.get(reverse('planner:plan_detail'), {'week': week})
+                self.assertEqual(response.context['plan_summary'], expected)
+                self.assertEqual(len(response.context['unscheduled']), 1)
+                self.assertContains(response, 'Entire active plan')
+                self.assertContains(
+                    response,
+                    '<p><strong>75 min</strong> scheduled unfinished · '
+                    '<strong>30 min</strong> completed sessions · '
+                    '<strong>1</strong> task not scheduled</p>',
+                    html=True,
+                )
+                self.assertContains(
+                    response,
+                    'Totals cover your entire active plan, not just the week below.',
+                )
+                content = response.content.decode()
+                self.assertLess(
+                    content.index('id="plan-summary-heading"'),
+                    content.index('aria-label="Study plan week navigation"'),
+                )
+
+    def test_summary_excludes_inactive_foreign_and_cross_linked_records(self):
+        own = self.make_session()
+        inactive = StudyPlan.objects.create(
+            user=self.user, start_date=own.study_plan.start_date,
+            end_date=own.study_plan.end_date, is_active=False,
+        )
+        self.make_session(plan=inactive, is_completed=True)
+        other_course = Course.objects.create(
+            user=self.other, canvas_course_id=990, name='Private course',
+        )
+        other_assignment = Assignment.objects.create(
+            course=other_course, canvas_assignment_id=9900, title='Private assignment',
+        )
+        self.make_session(user=self.other, assignment=other_assignment)
+        self.make_session(
+            user=self.other, assignment=other_assignment, plan=own.study_plan,
+        )
+        self.make_session(assignment=other_assignment, plan=own.study_plan)
+        TaskItem.objects.create(
+            user=self.other, assignment=other_assignment, description='Private task',
+        )
+        # An own task in an inactive plan is still unscheduled in the active plan.
+        expected = {
+            'scheduled_unfinished_minutes': 30,
+            'completed_session_minutes': 0,
+            'unscheduled_task_count': 1,
+        }
+        response = self.client.get(reverse('planner:plan_detail'))
+        self.assertEqual(response.context['plan_summary'], expected)
+        self.assertEqual(len(response.context['unscheduled']), 1)
+
+    def test_foreign_records_do_not_change_summary_or_warning_actions(self):
+        own = self.make_session()
+        TaskItem.objects.create(
+            user=self.user, assignment=self.assignment, description='Own unscheduled task',
+        )
+        url = reverse('planner:plan_detail')
+        before = self.client.get(url)
+        expected_summary = before.context['plan_summary']
+        expected_warnings = [
+            (item.task.pk, item.reason, item.next_step)
+            for item in before.context['unscheduled']
+        ]
+        course = Course.objects.create(user=self.other, canvas_course_id=991, name='Private course')
+        assignment = Assignment.objects.create(
+            course=course, canvas_assignment_id=9910, title='Confidential assignment',
+        )
+        for index, (user, task_assignment) in enumerate((
+            (self.other, assignment),
+            (self.other, self.assignment),
+            (self.user, assignment),
+        )):
+            self.make_session(
+                user=user, assignment=task_assignment, plan=own.study_plan,
+                is_completed=index % 2 == 0, description=f'Confidential session {index}',
+            )
+            TaskItem.objects.create(
+                user=user, assignment=task_assignment,
+                description=f'Confidential unscheduled task {index}',
+            )
+        self.make_session(user=self.other, assignment=assignment)
+
+        after = self.client.get(url)
+        self.assertEqual(after.context['plan_summary'], expected_summary)
+        self.assertEqual([
+            (item.task.pk, item.reason, item.next_step)
+            for item in after.context['unscheduled']
+        ], expected_warnings)
+        self.assertNotContains(after, 'Confidential')
+        self.assertNotContains(after, reverse('canvas_sync:assignment_detail', args=[assignment.pk]))
+
+    def test_own_task_sessions_on_foreign_or_inactive_plans_do_not_add_minutes(self):
+        own = self.make_session()
+        for user, active in ((self.other, True), (self.user, False)):
+            plan = StudyPlan.objects.create(
+                user=user, is_active=active,
+                start_date=own.study_plan.start_date, end_date=own.study_plan.end_date,
+            )
+            for completed in (False, True):
+                PlanSession.objects.create(
+                    study_plan=plan, task_item=own.task_item,
+                    scheduled_start=own.scheduled_start,
+                    scheduled_end=own.scheduled_start + datetime.timedelta(hours=5),
+                    is_completed=completed,
+                )
+        response = self.client.get(reverse('planner:plan_detail'))
+        self.assertEqual(response.context['plan_summary'], {
+            'scheduled_unfinished_minutes': 30,
+            'completed_session_minutes': 0,
+            'unscheduled_task_count': 0,
+        })
+
+    def test_no_plan_and_empty_plan_have_no_summary(self):
+        url = reverse('planner:plan_detail')
+        response = self.client.get(url)
+        self.assertIsNone(response.context['plan_summary'])
+        self.assertNotContains(response, 'id="plan-summary-heading"')
+        StudyPlan.objects.create(
+            user=self.user, start_date=timezone.localdate(), end_date=timezone.localdate(),
+        )
+        response = self.client.get(url)
+        self.assertIsNone(response.context['plan_summary'])
+        self.assertNotContains(response, 'id="plan-summary-heading"')
+
+    def test_completion_moves_minutes_between_totals(self):
+        session = self.make_session()
+        self.client.post(reverse('planner:session_toggle', args=[session.pk]))
+        summary = self.client.get(reverse('planner:plan_detail')).context['plan_summary']
+        self.assertEqual(summary['scheduled_unfinished_minutes'], 0)
+        self.assertEqual(summary['completed_session_minutes'], 30)
+        self.client.post(reverse('planner:session_toggle', args=[session.pk]))
+        response = self.client.get(reverse('planner:plan_detail'))
+        self.assertEqual(response.context['plan_summary'], {
+            'scheduled_unfinished_minutes': 30,
+            'completed_session_minutes': 0,
+            'unscheduled_task_count': 0,
+        })
+        self.assertNotContains(response, 'All sessions in your active plan are complete.')
+
+
+class PlanEmptyStateTests(PlannerViewTestCase):
+    def test_no_plan_with_tasks_guides_generation_without_failure_warning(self):
+        TaskItem.objects.create(user=self.user, assignment=self.assignment, description='Read')
+        response = self.client.get(reverse('planner:plan_detail'))
+        self.assertContains(response, 'Add availability, then choose Generate plan')
+        self.assertNotContains(response, 'Couldn’t schedule')
+        self.assertNotContains(response, 'id="plan-summary-heading"')
+        self.assertNotContains(response, 'There are no tasks to schedule yet.')
+
+    def test_zero_task_states_show_guidance_instead_of_totals(self):
+        for has_plan in (False, True):
+            with self.subTest(has_plan=has_plan):
+                if has_plan:
+                    StudyPlan.objects.create(
+                        user=self.user, start_date=timezone.localdate(),
+                        end_date=timezone.localdate(),
+                    )
+                response = self.client.get(reverse('planner:plan_detail'))
+                self.assertContains(response, 'There are no tasks to schedule yet.')
+                self.assertContains(response, f'href="{reverse("canvas_sync:connection")}"')
+                self.assertContains(response, 'to add checklist tasks.')
+                self.assertNotContains(response, 'id="plan-summary-heading"')
+                self.assertNotContains(response, 'Couldn’t schedule')
+                self.assertNotContains(response, 'Nice work!')
+
+    def test_completed_only_plan_keeps_minutes_and_shows_completion_message(self):
+        session = self.make_session(is_completed=True)
+        session.task_item.is_completed = True
+        session.task_item.save()
+        response = self.client.get(reverse('planner:plan_detail'))
+        self.assertContains(response, '<strong>30 min</strong> completed sessions')
+        self.assertContains(response, 'All sessions in your active plan are complete. Nice work!')
+        self.assertNotContains(response, 'There are no tasks to schedule yet.')
+
+    def test_wholly_unscheduled_plan_keeps_zero_minutes_and_actionable_warning(self):
+        TaskItem.objects.create(user=self.user, assignment=self.assignment, description='Read')
+        self.client.post(reverse('planner:plan_generate'))
+        response = self.client.get(reverse('planner:plan_detail'))
+        self.assertEqual(response.context['plan_summary'], {
+            'scheduled_unfinished_minutes': 0,
+            'completed_session_minutes': 0,
+            'unscheduled_task_count': 1,
+        })
+        self.assertContains(response, 'id="plan-summary-heading"')
+        self.assertContains(response, 'Couldn’t schedule 1 task')
+        self.assertContains(response, 'Adjust availability')
+        self.assertNotContains(response, 'There are no tasks to schedule yet.')
+        self.assertNotContains(response, 'Nice work!')
+
+    def test_other_students_records_do_not_hide_empty_guidance(self):
+        course = Course.objects.create(user=self.other, canvas_course_id=999, name='Private')
+        assignment = Assignment.objects.create(
+            course=course, canvas_assignment_id=9999, title='Private assignment',
+        )
+        plan = StudyPlan.objects.create(
+            user=self.user, start_date=timezone.localdate(), end_date=timezone.localdate(),
+        )
+        self.make_session(user=self.other, assignment=assignment, plan=plan)
+        self.make_session(assignment=assignment, plan=plan)
+        response = self.client.get(reverse('planner:plan_detail'))
+        self.assertContains(response, 'There are no tasks to schedule yet.')
+        self.assertNotContains(response, 'id="plan-summary-heading"')
+        self.assertNotContains(response, 'Private assignment')
+
+
+class UnscheduledWarningLinkTests(PlannerViewTestCase):
+    def test_warning_actions_match_each_reason_and_assignment(self):
+        now = timezone.now()
+        StudyPlan.objects.create(
+            user=self.user, start_date=now.date(), end_date=now.date(),
+        )
+        cases = (
+            (None, 'no due date', 'Review assignment'),
+            (now - datetime.timedelta(days=1), 'already past due', 'Review assignment'),
+            (now + datetime.timedelta(days=7), 'Not in your current plan', 'Adjust availability'),
+        )
+        for index, (due_at, reason, label) in enumerate(cases):
+            with self.subTest(reason=reason):
+                assignment = Assignment.objects.create(
+                    course=self.course, canvas_assignment_id=8000 + index,
+                    title=f'Assignment {index}', due_at=due_at,
+                )
+                task = TaskItem.objects.create(
+                    user=self.user, assignment=assignment, description=f'Task {index}',
+                )
+                response = self.client.get(reverse('planner:plan_detail'))
+                # Inspect this warning row, not unrelated navigation links.
+                row = response.content.decode().split(f'<strong>{task.description}</strong>')[1]
+                row = row.split('</li>')[0]
+                self.assertIn(reason, row)
+                target = (
+                    reverse('canvas_sync:assignment_detail', args=[assignment.pk])
+                    if label == 'Review assignment'
+                    else reverse('planner:availability_list')
+                )
+                self.assertIn(f'<a href="{target}">{label}</a>', row)
+                if label == 'Adjust availability':
+                    self.assertIn('or the task was added after the plan was generated', row)
+                    self.assertIn('Regenerate your plan after changing availability or adding tasks.', row)
+                else:
+                    self.assertNotIn('Adjust availability', row)
+                task.delete()
+
+
 class PlanViewTests(PlannerViewTestCase):
     def test_plan_page_without_a_plan(self):
         response = self.client.get(reverse('planner:plan_detail'))

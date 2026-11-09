@@ -3,6 +3,7 @@ from zoneinfo import ZoneInfo
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
+from django.urls import reverse
 
 from ai_assistant.models import TaskItem
 from canvas_sync.models import Assignment, Course
@@ -189,6 +190,11 @@ class GeneratePlanTests(SchedulingTestCase):
 
         self.assertEqual(result.plan.sessions.count(), 0)
         self.assertEqual([(u.task, u.reason) for u in result.unscheduled], [(task, NOT_ENOUGH_TIME)])
+        self.assertEqual(result.unscheduled[0].next_step, {
+            'label': 'Adjust availability',
+            'url': reverse('planner:availability_list'),
+            'hint': '',
+        })
 
     def test_tasks_do_not_overlap(self):
         self.one_time(datetime.date(2026, 10, 1), datetime.time(18), datetime.time(20))
