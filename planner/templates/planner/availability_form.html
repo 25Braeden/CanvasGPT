@@ -5,12 +5,85 @@
 {% block content %}
 <section class="content-card">
     <p><a href="{% url 'planner:availability_list' %}">← Back to availability</a></p>
+
     <h1>{% if is_new %}Add availability{% else %}Edit availability{% endif %}</h1>
-    <p>Weekly availability needs a weekday. One-time availability needs a date.</p>
+
+    <p>
+        Choose weekly availability for a repeating weekday, or one-time availability
+        for a specific date.
+    </p>
+
     <form method="post">
         {% csrf_token %}
-        {{ form.as_p }}
+
+        {{ form.non_field_errors }}
+
+        <p>
+            {{ form.recurrence.label_tag }}
+            {{ form.recurrence }}
+            {{ form.recurrence.errors }}
+        </p>
+
+        <div id="weekday-field">
+            <p>
+                {{ form.weekday.label_tag }}
+                {{ form.weekday }}
+                {{ form.weekday.errors }}
+            </p>
+        </div>
+
+        <div id="date-field">
+            <p>
+                {{ form.date.label_tag }}
+                {{ form.date }}
+                {{ form.date.errors }}
+            </p>
+        </div>
+
+        <p>
+            {{ form.start_time.label_tag }}
+            {{ form.start_time }}
+            {{ form.start_time.errors }}
+        </p>
+
+        <p>
+            {{ form.end_time.label_tag }}
+            {{ form.end_time }}
+            {{ form.end_time.errors }}
+        </p>
+
+        <p>
+            Times use your profile timezone:
+            <strong>{{ student_timezone }}</strong>
+        </p>
+
+        <p>
+            Overnight availability should be entered as two separate blocks.
+        </p>
+
         <button type="submit" class="primary">Save availability</button>
     </form>
 </section>
+
+<script>
+    (() => {
+        const recurrence = document.getElementById('id_recurrence');
+        const weekdayField = document.getElementById('weekday-field');
+        const dateField = document.getElementById('date-field');
+
+        function updateAvailabilityFields() {
+            if (!recurrence) {
+                return;
+            }
+
+            const weekly = recurrence.value === 'weekly';
+
+            weekdayField.hidden = !weekly;
+            dateField.hidden = weekly;
+        }
+
+        recurrence.addEventListener('change', updateAvailabilityFields);
+        updateAvailabilityFields();
+    })();
+</script>
 {% endblock %}

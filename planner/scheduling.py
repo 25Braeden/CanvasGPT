@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from django.db import transaction
+from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import StudentProfile
@@ -34,6 +35,24 @@ NOT_IN_PLAN = (
 class UnscheduledTask:
     task: TaskItem
     reason: str
+
+    @property
+    def next_step(self):
+        """Keep warning actions consistent for generated and existing plans."""
+        if self.reason in (NO_DUE_DATE, PAST_DUE):
+            return {
+                'label': 'Review assignment',
+                'url': reverse('canvas_sync:assignment_detail', args=[self.task.assignment_id]),
+                'hint': '',
+            }
+        return {
+            'label': 'Adjust availability',
+            'url': reverse('planner:availability_list'),
+            'hint': (
+                'Regenerate your plan after changing availability or adding tasks.'
+                if self.reason == NOT_IN_PLAN else ''
+            ),
+        }
 
 
 @dataclass
