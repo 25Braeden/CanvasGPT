@@ -75,15 +75,75 @@ python manage.py runserver
 
 Open http://127.0.0.1:8000/.
 
+## AI task suggestion service (optional)
+
+Install dependencies as above, then set these optional values in your local `.env`:
+
+```dotenv
+OPENAI_API_KEY=replace-with-your-own-openai-api-key
+OPENAI_MODEL=gpt-4o-mini
+OPENAI_TIMEOUT_SECONDS=30
+```
+
+Use a model that supports Chat Completions strict JSON-schema output. The timeout
+must be greater than zero and at most 120 seconds; automatic SDK retries are
+disabled. Never commit real credentials. Missing/invalid configuration disables
+suggestions, not manual checklist creation or the rest of the application.
+
+`ai_assistant.services.generate_task_suggestions(assignment=assignment, user=user)`
+returns a `SuggestionResult` with immutable `suggestions` on success, or an empty
+suggestion tuple, a safe `failure` code, and a manual-creation fallback `message`.
+Call it only on an explicit generation action, not during page rendering.
+
+Only the selected assignment's plain-text description and rubric titles and
+descriptions are sent to OpenAI. Assignment text is treated as untrusted input;
+no tools or link fetching are enabled. Canvas tokens, student account details,
+other assignments, and existing checklist tasks are not included. Source text
+is still sent to an external provider: review your institution's data policy.
+Requests use `store=False`; this is not a guarantee of zero provider retention.
+
+The service requires 1–20 suggestions, descriptions of 1–500 trimmed characters,
+and integer estimates of 1–480 minutes. Malformed, empty, refused, truncated, or
+partially invalid responses are rejected in full. Input is limited to 50,000
+source-text characters and 50 rubric criteria; entirely empty input is rejected.
+
+Every authorized generation attempt records only the user association, request
+type, timestamp, configured model, and success status in `AIRequest`. Configuration
+and input failures are unsuccessful attempts; invalid model configuration uses
+`(unconfigured)` in the audit. Unauthorized attempts do not call the provider or
+create an audit. Prompts, responses, secrets, and raw provider errors are not
+logged by the service. Audit-write failure withholds suggestions.
+
+**Generation never saves `TaskItem` rows or changes checklist/planner work.**
+This is a service-only integration: there is not yet a generation button or
+review/acceptance UI. A separate review workflow must let students select/edit
+suggestions and explicitly accept them before creating tasks. Do not use active
+`TaskItem` rows to store pending suggestions. Acceptance must revalidate values
+and ownership and append, rather than replace, existing tasks. Manual checklist
+actions remain available unchanged.
+
+Run the isolated mocked tests with no API key or external requests:
+
+```bash
+python manage.py test ai_assistant.test_services
+```
+
+Tests inject an SDK-compatible client or patch its constructor; do not configure
+a live key for tests.
+
 ## Study planner
 
 Signed-in students can schedule their checklist tasks around their own time:
 
 1. Open **Availability** in the navigation bar and add weekly blocks (for example, every Monday 6:00–8:00 PM) or one-time blocks on a specific date.
 2. Open **Study plan** and click **Generate plan**. Incomplete tasks are placed into your availability, earliest due date first, in sessions sized by the session length and break settings on your profile. Every session ends before the assignment is due and no two sessions overlap.
-3. Tasks that can't be scheduled (no due date, already past due, or not enough free time before the due date) are listed under **Couldn't schedule** with the reason.
+3. Tasks that can't be scheduled (no due date, already past due, or not enough free time before the due date) are listed under **Couldn't schedule** with the reason. Use **Review assignment** for missing or past-due dates, or **Adjust availability** for availability-related warnings. Tasks added after generation may also be missing from the plan; regenerate after adding tasks or changing availability.
 4. Browse the Monday–Sunday list using **Previous week**, **This week**, and **Next week**. Dates and session times use your profile timezone; every date appears, with **No sessions** for empty days. Sessions belong to the week in which they start.
 5. Mark sessions complete as you go. When every session for a task is complete, the task is checked off on its assignment checklist. Regenerating keeps completed sessions and only schedules the remaining time. Completion and regeneration keep the selected week.
+
+Above the weekly schedule, **Entire active plan** shows scheduled unfinished minutes, completed session minutes, and the number of tasks not scheduled. Minutes come from actual session durations, not task estimates. These totals cover the entire active plan and stay the same when browsing different weeks; inactive plans and other students' records are excluded.
+
+Without an active plan, the page guides you to add availability and generate a plan instead of showing totals or scheduling-failure warnings. With no tasks or sessions to display, it links to assignment sync and checklist creation instead of showing all-zero totals. Completed-only plans retain their completed minutes and show a completion message. Plans with tasks that could not fit still show accurate zero-minute totals and actionable warnings.
 
 Weekly links use `?week=YYYY-MM-DD`; any valid date selects its containing Monday–Sunday week. Missing, invalid, or out-of-range values fall back to the current week in your profile timezone.
 
@@ -104,5 +164,7 @@ Run the shared scroll-restoration tests (requires Node.js 18 or later; no npm de
 ```bash
 node --test tests/preserve-scroll.test.cjs
 ```
+
+For summary browser verification, check both desktop and narrow/mobile widths. Confirm that the summary wraps without horizontal overflow, appears above the weekly schedule, and stays unchanged when navigating to another week (including an empty week). Toggle a session and confirm minutes move between unfinished and completed totals. Check **Adjust availability** and **Review assignment** beside the appropriate warning reasons. Also check no-plan, no-task, completed-only, and wholly unscheduled plans for the guidance described above.
 
 For browser verification, scroll down a populated study week, toggle a session, and regenerate the plan: the selected week and scroll position should remain. Also check checklist actions, profile saves, and availability deletion. Click each week-navigation link and confirm the selected week changes while your scroll position remains (subject to the new page height). Navigation to a different page must not inherit the previous page's scroll position.
