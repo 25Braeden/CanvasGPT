@@ -71,7 +71,7 @@ def generate_suggestion_draft(*, assignment, user, client=None):
 
     try:
         with transaction.atomic():
-            # Serializes draft replacement with future acceptance on this assignment.
+            # Serializes draft replacement with review/acceptance on this assignment.
             Assignment.objects.select_for_update().get(pk=assignment.pk, course__user_id=user.pk)
             SuggestionDraft.objects.filter(
                 assignment=assignment, user=user, status=SuggestionDraft.Status.PENDING,
@@ -83,9 +83,41 @@ def generate_suggestion_draft(*, assignment, user, client=None):
                     {'description': item.description, 'estimated_minutes': item.estimated_minutes}
                     for item in result.suggestions
                 ],
+                selected_indices=list(range(len(result.suggestions))),
                 generation_mode=mode,
                 model_name=DEMO_MODEL_NAME if mode == SuggestionDraft.GenerationMode.DEMO else settings.OPENAI_MODEL.strip(),
             )
     except (DatabaseError, ValidationError, Assignment.DoesNotExist):
         return None, SuggestionResult(failure=GenerationFailure.DRAFT_ERROR)
     return draft, result
+
+
+class DraftReviewConflict(Exception):
+    """The reviewed snapshot is no longer the current pending draft."""
+
+
+def update_draft_review(*, draft, user, revision, suggestions=None, selected_indices=None, discard=False):
+    """Save review state only; never create tasks or call a generation provider.
+
+    Lock ordering matches regeneration and acceptance. The revision also
+    detects stale browser tabs even though the submitted draft ID is unchanged.
+    """
+    with transaction.atomic():
+        Assignment.objects.select_for_update().get(pk=draft.assignment_id, course__user_id=user.pk)
+        current = SuggestionDraft.objects.select_for_update().get(
+            pk=draft.pk, user=user, assignment__course__user=user,
+        )
+        if (
+            current.status != SuggestionDraft.Status.PENDING
+            or current.expires_at <= timezone.now()
+            or current.revision != revision
+        ):
+            raise DraftReviewConflict('This draft changed or is no longer available. Reload before continuing.')
+        if discard:
+            current.status = SuggestionDraft.Status.DISCARDED
+        else:
+            current.suggestions = suggestions
+            current.selected_indices = selected_indices
+        current.revision += 1
+        current.save()
+    return current

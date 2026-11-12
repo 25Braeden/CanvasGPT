@@ -98,6 +98,8 @@ class SuggestionDraft(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='suggestion_drafts',
     )
     suggestions = models.JSONField()
+    selected_indices = models.JSONField(default=list, blank=True)
+    revision = models.PositiveIntegerField(default=1)
     generation_mode = models.CharField(max_length=20, choices=GenerationMode.choices)
     model_name = models.CharField(max_length=100)
     created_at = models.DateTimeField(default=timezone.now, editable=False)
@@ -120,8 +122,15 @@ class SuggestionDraft(models.Model):
     @property
     def validated_suggestions(self):
         # Local import avoids a models/services import cycle; reuse one schema.
-        from .services import validate_suggestions
-        return validate_suggestions(json.dumps({'tasks': self.suggestions}, ensure_ascii=False))
+        from .services import InvalidSuggestions, validate_suggestions
+        validated = validate_suggestions(json.dumps({'tasks': self.suggestions}, ensure_ascii=False))
+        if (
+            not isinstance(self.selected_indices, list)
+            or any(type(index) is not int or not 0 <= index < len(validated) for index in self.selected_indices)
+            or len(set(self.selected_indices)) != len(self.selected_indices)
+        ):
+            raise InvalidSuggestions()
+        return validated
 
     def clean(self):
         from canvas_sync.models import Assignment
@@ -140,6 +149,7 @@ class SuggestionDraft(models.Model):
             {'description': item.description, 'estimated_minutes': item.estimated_minutes}
             for item in validated
         ]
+        self.selected_indices = sorted(self.selected_indices)
 
     def save(self, *args, **kwargs):
         self.full_clean()

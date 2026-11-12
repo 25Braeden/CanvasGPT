@@ -77,6 +77,8 @@ class SuggestionDraftTests(TestCase):
         self.assertGreaterEqual(draft.created_at, before)
         self.assertAlmostEqual((draft.expires_at - draft.created_at).total_seconds(), 86400, delta=2)
         self.assertEqual(draft.validated_suggestions, result.suggestions)
+        self.assertEqual(draft.selected_indices, list(range(len(result.suggestions))))
+        self.assertEqual(draft.revision, 1)
         self.assertEqual(set(draft.suggestions[0]), {'description', 'estimated_minutes'})
         self.assertNotIn('Write an essay.', str(draft.suggestions))
         self.assertEqual(AIRequest.objects.count(), 1)

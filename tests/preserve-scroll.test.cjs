@@ -101,6 +101,26 @@ test('suggestion generation does not leak scroll to another assignment', () => {
     assert.equal(result.storage.size, 0);
 });
 
+test('saving review preserves scroll; discard and acceptance keep assignment navigation normal', () => {
+    const review = 'https://canvasgpt.test/suggestions/drafts/1/review/';
+    const source = browser(review);
+    source.submit();
+    const saved = browser(review, source.storage);
+    saved.show();
+    assert.equal(saved.scrolls.length, 1);
+    assert.equal(saved.scrolls[0].top, 850);
+
+    for (const action of ['discard', 'accept']) {
+        saved.submit({}, {
+            submitter: { formAction: `https://canvasgpt.test/suggestions/drafts/1/${action}/` },
+        });
+        const assignment = browser('https://canvasgpt.test/assignments/29/', saved.storage);
+        assignment.show();
+        assert.equal(assignment.scrolls.length, 0);
+        assert.equal(assignment.storage.size, 0);
+    }
+});
+
 test('canonical selected-week redirect restores position from a default plan URL', () => {
     const source = browser();
     source.submit({ dataset: { scrollPage: '/planner/plan/?week=2026-03-02' } });

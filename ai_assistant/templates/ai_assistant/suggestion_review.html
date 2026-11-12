@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+
+{% block title %}Review suggestions | {{ assignment.title }} | CanvasGPT{% endblock %}
+
+{% block content %}
+<style>
+    .suggestion-review h1 { font-size: clamp(1.75rem, 4vw, 2.5rem); }
+    .suggestion-review .review-selection { display: flex; align-items: center; gap: 0.75rem; }
+    .suggestion-review textarea { resize: vertical; }
+    .suggestion-review .review-footer { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border); }
+</style>
+<section class="content-card wide suggestion-review">
+    <p><a href="{% url 'canvas_sync:assignment_detail' assignment.pk %}">← Back to assignment</a></p>
+    <h1>Review task suggestions</h1>
+    <h2>{{ assignment.title }}</h2>
+    <p>These suggestions are not in your checklist. Edit descriptions and estimates, and select
+        the suggestions you want to add. Saving this review does not create tasks;
+        only <strong>Accept selected tasks</strong> adds them to your checklist.</p>
+    {% if draft.generation_mode == 'demo' %}
+    <p><strong>Demo draft:</strong> these are fixed example suggestions, not tailored AI output.</p>
+    {% endif %}
+    <p>Draft expires {{ draft.expires_at|date:"M j, Y, g:i A" }}. Saving does not extend its lifetime.</p>
+    {% for message in messages %}
+    <p role="status">{{ message }}</p>
+    {% endfor %}
+
+    <form method="post" action="{% url 'ai_assistant:suggestions_review' draft.pk %}">
+        {% csrf_token %}
+        {{ revision_form.non_field_errors }}
+        {{ revision_form.revision.errors }}
+        {{ revision_form.revision }}
+        {{ formset.management_form }}
+        {{ formset.non_form_errors }}
+        {% for form in formset %}
+        <fieldset>
+            <legend>Suggestion {{ forloop.counter }}</legend>
+            {{ form.non_field_errors }}
+            <p>
+                {{ form.selected.errors }}
+                <label class="review-selection" for="{{ form.selected.id_for_label }}">
+                    {{ form.selected }} {{ form.selected.label }}
+                </label>
+            </p>
+            <p>
+                {{ form.description.label_tag }}
+                {{ form.description.errors }}
+                {{ form.description }}
+            </p>
+            <p>
+                {{ form.estimated_minutes.label_tag }}
+                {{ form.estimated_minutes.errors }}
+                {{ form.estimated_minutes }}
+            </p>
+        </fieldset>
+        {% endfor %}
+        <p>Descriptions must be 1–500 characters; estimates must be whole numbers from 1–480 minutes.
+            Unselected suggestions stay in the draft. You may save with none selected.</p>
+        <div class="form-actions">
+            <button type="submit">Save draft review</button>
+            <button type="submit" class="primary" formaction="{% url 'ai_assistant:suggestions_accept' draft.pk %}">Accept selected tasks</button>
+            <a href="{% url 'ai_assistant:suggestions_review' draft.pk %}">Reload saved draft</a>
+        </div>
+    </form>
+
+    <div class="review-footer">
+        <p>Accepting saves your current edits and adds only selected suggestions as new, incomplete tasks.
+            It closes this draft; unselected suggestions are not added. Existing tasks and completed
+            work stay unchanged. Your study plan is not automatically regenerated.</p>
+        <p>To remove this draft without adding tasks, discard it below.</p>
+        <form method="post" action="{% url 'ai_assistant:suggestions_discard' draft.pk %}">
+            {% csrf_token %}
+            <input type="hidden" name="revision" value="{{ revision_form.revision.value }}">
+            <button type="submit">Discard draft</button>
+        </form>
+    </div>
+</section>
+{% endblock %}

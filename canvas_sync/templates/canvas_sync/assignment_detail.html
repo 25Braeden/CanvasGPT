@@ -30,6 +30,9 @@
     <p><a href="{% url 'dashboard' %}">← Back to dashboard</a></p>
 
     <h1>{{ assignment.title }}</h1>
+    {% for message in messages %}
+    <p role="status">{{ message }}</p>
+    {% endfor %}
 
     <div class="sync-status {{ assignment_sync_status.level }}" role="status">
         <strong>Canvas sync: {{ assignment_sync_status.label }}</strong>

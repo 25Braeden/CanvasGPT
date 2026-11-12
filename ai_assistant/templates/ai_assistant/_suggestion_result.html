@@ -4,8 +4,10 @@
 {% if suggestion_draft %}
 <div class="description-block">
     <h3>{% if suggestion_draft.generation_mode == 'demo' %}Demo suggestion preview{% else %}Task suggestion preview{% endif %}</h3>
-    <p>These suggestions are not in your checklist. Editing and accepting suggestions
-        will be added in a later step. You can add tasks manually below.</p>
+    <p>These suggestions are not in your checklist. Review and edit them before acceptance,
+        or add tasks manually below.</p>
+    <p>{{ suggestion_draft.selected_indices|length }} of {{ suggestion_draft.suggestions|length }} selected for acceptance.</p>
+    <p><a class="button" href="{% url 'ai_assistant:suggestions_review' suggestion_draft.pk %}">Review suggestions</a></p>
     <ol>
         {% for suggestion in suggestion_draft.suggestions %}
         <li>{{ suggestion.description }} — {{ suggestion.estimated_minutes }} min</li>

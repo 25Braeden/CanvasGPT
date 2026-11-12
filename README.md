@@ -103,11 +103,28 @@ To try it:
    `demo-task-suggestions` so demo attempts cannot be mistaken for real AI calls.
 5. Confirm that existing tasks and completed work are unchanged. Refresh or
    leave and return: the pending draft is still displayed without another AI
-   call/audit entry. Drafts expire after 24 hours and cannot be accepted or
-   edited yet. Successful regeneration replaces the pending draft; failed
-   generation or storage leaves the previous draft available.
-6. An assignment with no description or rubric shows a safe failure message;
-   manual task creation remains available.
+   call/audit entry. Drafts expire after 24 hours. Successful regeneration
+   replaces the pending draft; failed generation or storage leaves it available.
+6. Click **Review suggestions** to edit descriptions and whole-number estimates,
+   select suggestions, and **Save draft review**. Reload or return to the
+   assignment to confirm edits and selections persist. All suggestions initially
+   start selected; unselected suggestions stay in the draft, and saving with
+   none selected is allowed. Saving does not extend the expiry.
+7. **Discard draft** removes it from the pending preview without changing tasks.
+   Stale tabs, replaced/expired drafts, and repeat discard requests cannot
+   overwrite newer work. Review and discard do not call the provider or create
+   AI audit entries. Review forms use normal POST/redirect with the shared
+   scroll-preservation behavior.
+8. Click **Accept selected tasks** on the review form to validate your current
+   edits and add only checked suggestions to the checklist. You do not need to
+   save first. At least one selection is required. Acceptance closes the draft;
+   unselected suggestions are not added. New tasks append after existing tasks,
+   start incomplete, and are marked as generated suggestions (including demo
+   suggestions). Existing tasks, completed work, and study sessions are preserved.
+9. Repeating the same acceptance cannot create duplicate tasks. Stale, expired,
+   discarded, or replaced drafts are rejected safely. An assignment with no
+   description or rubric shows a safe generation failure message; manual task
+   creation remains available.
 
 The button submits a CSRF-protected POST and requires assignment ownership.
 With JavaScript enabled, generation updates only the preview in place, without
@@ -171,21 +188,32 @@ create an audit. Prompts, responses, secrets, and raw provider errors are not
 logged by the service. Audit-write failure withholds suggestions.
 
 **Generation never saves `TaskItem` rows or changes checklist/planner work.**
-The browser offers saved, read-only drafts. A separate review workflow must
-still let students select/edit suggestions and explicitly accept them before
-creating tasks. `SuggestionDraft` stores only validated descriptions and duration
-estimates, the student/assignment association, provider mode/model, timestamps,
-and lifecycle status—not source prompts or raw provider responses. `AIRequest`
+The browser offers saved drafts with review/edit/selection and discard actions.
+Explicit acceptance is a separate POST action, implemented in
+`ai_assistant/acceptance.py`; generation, review saves, and discard never create
+tasks. Acceptance uses the current review form values, revalidates server-side,
+and creates tasks only after the student clicks **Accept selected tasks**.
+`SuggestionDraft` stores validated descriptions and duration estimates, selected
+suggestion indexes, a revision for stale-tab protection, the student/assignment
+association, provider mode/model, timestamps, and lifecycle status—not source
+prompts or raw provider responses. `AIRequest`
 remains metadata-only. Generation success in the audit means provider output
 passed validation; draft storage can separately fail safely.
 
 There is at most one pending draft per student/assignment. Successful replacement
-marks the previous draft `superseded` in a transaction. `accepted` and `discarded`
-statuses are reserved for the future review workflow; no acceptance/discard
-endpoint is implemented yet. Expired and terminal-status drafts are not shown.
-Acceptance must later lock the assignment/draft, revalidate values and ownership,
-and append rather than replace existing tasks. Manual checklist actions remain
-available unchanged.
+marks the previous draft `superseded` in a transaction. Discard sets `discarded`;
+acceptance sets `accepted`. Review, discard, and acceptance lock the
+assignment/draft and check the submitted revision, status, and expiry again
+before writing. Expired and terminal-status drafts are not shown. Acceptance
+revalidates content, selection, and ownership, then appends only selected tasks.
+Task insertion and marking the draft accepted share one transaction, so any
+failure rolls back both. Repeated/stale acceptance cannot add duplicates.
+Manual additions and reordering use the same assignment lock to serialize
+ordering changes. No acceptance action calls OpenAI or writes an AIRequest.
+
+Acceptance does not automatically schedule tasks or regenerate the study plan.
+Regenerate the plan explicitly when ready; existing completed sessions are kept.
+Manual checklist actions remain available unchanged.
 
 Expiry hides drafts but does not automatically remove their stored content.
 Schedule this cleanup command (for example, hourly) to delete expired draft
@@ -198,7 +226,7 @@ python manage.py purge_expired_suggestion_drafts
 Run the isolated mocked tests with no API key or external requests:
 
 ```bash
-python manage.py test ai_assistant.test_services ai_assistant.test_suggestion_views ai_assistant.test_drafts
+python manage.py test ai_assistant
 ```
 
 Tests inject an SDK-compatible client or patch its constructor; do not configure
