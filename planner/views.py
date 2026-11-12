@@ -4,14 +4,16 @@ from urllib.parse import urlencode
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Count, F, Q, Sum
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from accounts.models import StudentProfile
 
 from .forms import AvailabilityBlockForm
+from .ical import build_calendar
 from .models import AvailabilityBlock, PlanSession, StudyPlan
 from .scheduling import find_unscheduled, generate_plan, student_timezone
 
@@ -197,6 +199,30 @@ def _back_to_week(request):
 def plan_generate(request):
     generate_plan(request.user)
     return _back_to_week(request)
+
+
+@login_required
+@require_GET
+def plan_export(request):
+    """Download the active study plan as an iCalendar (.ics) file."""
+    tz = _timezone_for(request.user)
+    plan = StudyPlan.objects.filter(user=request.user, is_active=True).first()
+    sessions = PlanSession.objects.none()
+    if plan:
+        sessions = plan.sessions.filter(
+            task_item__user=request.user,
+            task_item__assignment__course__user=request.user,
+        ).select_related(
+            'task_item', 'task_item__assignment', 'task_item__assignment__course'
+        ).order_by('scheduled_start', 'pk')
+        if request.GET.get('include_completed') != '1':
+            sessions = sessions.filter(is_completed=False)
+    response = HttpResponse(
+        build_calendar(sessions, request, tz),
+        content_type='text/calendar; charset=utf-8',
+    )
+    response['Content-Disposition'] = 'attachment; filename="canvasgpt-study-plan.ics"'
+    return response
 
 
 @login_required
