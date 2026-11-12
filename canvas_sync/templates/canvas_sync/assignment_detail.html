@@ -11,6 +11,7 @@
     <div class="sync-status {{ assignment_sync_status.level }}" role="status">
         <strong>Canvas sync: {{ assignment_sync_status.label }}</strong>
         <p>{{ assignment_sync_status.message }}</p>
+        {% include 'canvas_sync/_sync_now.html' with sync_status=assignment_sync_status %}
     </div>
 
     <div class="metadata-grid" aria-label="Assignment details">
