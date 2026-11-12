@@ -75,9 +75,43 @@ python manage.py runserver
 
 Open http://127.0.0.1:8000/.
 
-## AI task suggestion service (optional)
+## Task suggestions: browser demo (no API key)
 
-Install dependencies as above, then set these optional values in your local `.env`:
+The assignment page now has a **Generate demo suggestions** button. This is step
+one of the browser integration: it displays a read-only preview using fixed,
+generic mocked suggestions, not AI-generated suggestions tailored to the
+assignment. No API request is made, even if an OpenAI key is present in `.env`.
+
+To try it:
+
+1. Install dependencies (`python -m pip install -r requirements.txt`).
+2. Configure the existing Django settings in `.env` as described in Local setup.
+   No additional environment variables, OpenAI key, or new migrations are needed
+   for the demo. Leave `OPENAI_API_KEY` blank.
+3. Run `python manage.py runserver`, sign in, and open a synchronized assignment
+   with a description or rubric criteria.
+4. Click **Generate demo suggestions**. A preview appears above the unchanged
+   checklist. A metadata-only `AIRequest` is recorded with model name
+   `demo-task-suggestions` so demo attempts cannot be mistaken for real AI calls.
+5. Confirm that existing tasks and completed work are unchanged. The preview
+   cannot be accepted or edited yet and is not saved when you leave the page.
+6. An assignment with no description or rubric shows a safe failure message;
+   manual task creation remains available.
+
+The button submits a CSRF-protected POST and requires assignment ownership.
+With JavaScript enabled, generation updates only the preview in place, without
+reloading the page or restoring scroll after a reload. The button is disabled
+and progress is announced during the request. Network/session errors show a
+safe inline message and allow retry; requests are not automatically resubmitted.
+The form still works without JavaScript (or without `fetch`), using the shared
+scroll-preservation behavior on full-page responses. In that fallback mode,
+refreshing a POST response may ask to resubmit and create another audit attempt,
+but never adds checklist tasks.
+
+## Live AI task suggestion service (optional, not connected to the browser yet)
+
+Only direct service calls use live OpenAI generation. If you want to test those
+separately, set these optional values in your local `.env`:
 
 ```dotenv
 OPENAI_API_KEY=replace-with-your-own-openai-api-key
@@ -88,7 +122,10 @@ OPENAI_TIMEOUT_SECONDS=30
 Use a model that supports Chat Completions strict JSON-schema output. The timeout
 must be greater than zero and at most 120 seconds; automatic SDK retries are
 disabled. Never commit real credentials. Missing/invalid configuration disables
-suggestions, not manual checklist creation or the rest of the application.
+live suggestions, not the offline browser demo, manual checklist creation, or
+the rest of the application. Restart Django after changing `.env`. Real API
+requests may incur charges. Canvas credentials are configured separately and
+are never sent to OpenAI.
 
 `ai_assistant.services.generate_task_suggestions(assignment=assignment, user=user)`
 returns a `SuggestionResult` with immutable `suggestions` on success, or an empty
@@ -109,15 +146,17 @@ source-text characters and 50 rubric criteria; entirely empty input is rejected.
 
 Every authorized generation attempt records only the user association, request
 type, timestamp, configured model, and success status in `AIRequest`. Configuration
-and input failures are unsuccessful attempts; invalid model configuration uses
-`(unconfigured)` in the audit. Unauthorized attempts do not call the provider or
+and input failures are unsuccessful attempts; invalid live model configuration
+uses `(unconfigured)` in the audit. Demo attempts use `demo-task-suggestions`
+and bypass OpenAI credential, model, and timeout configuration. Unauthorized attempts do not call the provider or
 create an audit. Prompts, responses, secrets, and raw provider errors are not
 logged by the service. Audit-write failure withholds suggestions.
 
 **Generation never saves `TaskItem` rows or changes checklist/planner work.**
-This is a service-only integration: there is not yet a generation button or
-review/acceptance UI. A separate review workflow must let students select/edit
-suggestions and explicitly accept them before creating tasks. Do not use active
+The browser currently offers only an offline read-only demo preview. There is
+not yet a draft-saving or review/acceptance workflow. A separate review workflow
+must let students select/edit suggestions and explicitly accept them before
+creating tasks. Do not use active
 `TaskItem` rows to store pending suggestions. Acceptance must revalidate values
 and ownership and append, rather than replace, existing tasks. Manual checklist
 actions remain available unchanged.
@@ -125,7 +164,7 @@ actions remain available unchanged.
 Run the isolated mocked tests with no API key or external requests:
 
 ```bash
-python manage.py test ai_assistant.test_services
+python manage.py test ai_assistant.test_services ai_assistant.test_suggestion_views
 ```
 
 Tests inject an SDK-compatible client or patch its constructor; do not configure
@@ -162,7 +201,7 @@ python manage.py test
 Run the shared scroll-restoration tests (requires Node.js 18 or later; no npm dependencies):
 
 ```bash
-node --test tests/preserve-scroll.test.cjs
+node --test tests/preserve-scroll.test.cjs tests/suggestions.test.cjs
 ```
 
 For summary browser verification, check both desktop and narrow/mobile widths. Confirm that the summary wraps without horizontal overflow, appears above the weekly schedule, and stays unchanged when navigating to another week (including an empty week). Toggle a session and confirm minutes move between unfinished and completed totals. Check **Adjust availability** and **Review assignment** beside the appropriate warning reasons. Also check no-plan, no-task, completed-only, and wholly unscheduled plans for the guidance described above.

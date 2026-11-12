@@ -50,6 +50,57 @@ test('all POST actions restore scroll once when returning to the same page', () 
     }
 });
 
+test('suggestion generation restores assignment scroll on the preview response URL', () => {
+    const assignment = 'https://canvasgpt.test/assignments/29/';
+    const destination = '/assignments/29/suggestions/generate/';
+    // Both successful previews and safe failure pages render at the POST URL.
+    // Repeated generation must restore from that URL too.
+    for (const sourceUrl of [assignment, `https://canvasgpt.test${destination}`]) {
+        const source = browser(sourceUrl);
+        source.submit({
+            action: `https://canvasgpt.test${destination}`,
+            dataset: { scrollPage: destination },
+        });
+        const result = browser(`https://canvasgpt.test${destination}`, source.storage);
+        result.show();
+        assert.equal(result.scrolls.length, 1);
+        assert.equal(result.scrolls[0].top, 850);
+        assert.equal(result.scrolls[0].left, 10);
+        assert.equal(result.storage.size, 0);
+        result.show();
+        assert.equal(result.scrolls.length, 1);
+    }
+});
+
+test('checklist actions from a suggestion preview restore scroll on the assignment', () => {
+    for (const action of ['/tasks/1/toggle/', '/tasks/1/delete/',
+        '/tasks/1/move/up/', '/tasks/1/move/down/', '/assignments/29/tasks/add/']) {
+        const source = browser('https://canvasgpt.test/assignments/29/suggestions/generate/');
+        source.submit({
+            action: `https://canvasgpt.test${action}`,
+            dataset: { scrollPage: '/assignments/29/' },
+        });
+        const result = browser('https://canvasgpt.test/assignments/29/', source.storage);
+        result.show();
+        assert.equal(result.scrolls.length, 1);
+        assert.equal(result.scrolls[0].top, 850);
+        assert.equal(result.storage.size, 0);
+    }
+});
+
+test('suggestion generation does not leak scroll to another assignment', () => {
+    const source = browser('https://canvasgpt.test/assignments/29/');
+    const destination = '/assignments/29/suggestions/generate/';
+    source.submit({
+        action: `https://canvasgpt.test${destination}`,
+        dataset: { scrollPage: destination },
+    });
+    const result = browser('https://canvasgpt.test/assignments/30/', source.storage);
+    result.show();
+    assert.equal(result.scrolls.length, 0);
+    assert.equal(result.storage.size, 0);
+});
+
 test('canonical selected-week redirect restores position from a default plan URL', () => {
     const source = browser();
     source.submit({ dataset: { scrollPage: '/planner/plan/?week=2026-03-02' } });

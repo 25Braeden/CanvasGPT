@@ -5,6 +5,11 @@ from . import views
 app_name = 'ai_assistant'
 
 urlpatterns = [
+    path(
+        'assignments/<int:assignment_pk>/suggestions/generate/',
+        views.suggestions_generate,
+        name='suggestions_generate',
+    ),
     path('assignments/<int:assignment_pk>/tasks/add/', views.task_add, name='task_add'),
     path('tasks/<int:pk>/edit/', views.task_edit, name='task_edit'),
     path('tasks/<int:pk>/delete/', views.task_delete, name='task_delete'),

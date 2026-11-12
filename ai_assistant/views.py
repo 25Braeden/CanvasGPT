@@ -1,6 +1,8 @@
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Max
+from django.http import JsonResponse
+from django.template.loader import render_to_string
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
@@ -9,6 +11,7 @@ from canvas_sync.views import get_assignment_sync_status
 
 from .forms import TaskItemForm
 from .models import TaskItem
+from .services import generate_task_suggestions
 
 
 def _get_assignment(request, assignment_pk):
@@ -28,6 +31,36 @@ def _get_task(request, pk):
 
 def _back_to_assignment(assignment):
     return redirect('canvas_sync:assignment_detail', pk=assignment.pk)
+
+
+@login_required
+@require_POST
+def suggestions_generate(request, assignment_pk):
+    assignment = _get_assignment(request, assignment_pk)
+    # Browser integration is deliberately demo-only until review/acceptance exists.
+    # Never take provider mode or client configuration from submitted form data.
+    result = generate_task_suggestions(
+        assignment=assignment, user=request.user, demo=True,
+    )
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({
+            'html': render_to_string(
+                'ai_assistant/_suggestion_result.html',
+                {'suggestion_result': result},
+                request=request,
+            ),
+        })
+    return render(
+        request,
+        'canvas_sync/assignment_detail.html',
+        {
+            'assignment': assignment,
+            'assignment_sync_status': get_assignment_sync_status(assignment),
+            'task_items': assignment.task_items.filter(user=request.user),
+            'task_form': TaskItemForm(),
+            'suggestion_result': result,
+        },
+    )
 
 
 @login_required

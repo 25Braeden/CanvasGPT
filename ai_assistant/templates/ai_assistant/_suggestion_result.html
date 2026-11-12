@@ -1,0 +1,17 @@
+{% if suggestion_result %}
+    {% if suggestion_result.success %}
+    <div class="description-block">
+        <h3>Demo suggestion preview</h3>
+        <p>These suggestions are not in your checklist. Saving, editing, and accepting suggestions
+            will be added in a later step. You can add tasks manually below.</p>
+        <ol>
+            {% for suggestion in suggestion_result.suggestions %}
+            <li>{{ suggestion.description }} — {{ suggestion.estimated_minutes }} min</li>
+            {% endfor %}
+        </ol>
+        <p>This preview is not saved; leaving this page clears it.</p>
+    </div>
+    {% else %}
+    <p role="alert">{{ suggestion_result.message }}</p>
+    {% endif %}
+{% endif %}

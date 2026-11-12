@@ -16,6 +16,7 @@ from openai import APIError, APITimeoutError, OpenAI
 
 from canvas_sync.models import Assignment
 
+from .demo import DEMO_MODEL_NAME, DemoSuggestionClient
 from .models import AIRequest
 
 MAX_TASKS = 20
@@ -191,13 +192,15 @@ def _request_suggestions(client, *, model, timeout, payload):
     return validate_suggestions(getattr(message, 'content', None))
 
 
-def generate_task_suggestions(*, assignment, user, client=None):
+def generate_task_suggestions(*, assignment, user, client=None, demo=False):
     """Return validated suggestions or a safe failure; write only AIRequest.
 
     ``client`` may be an SDK-compatible mock; it needs no real API key. Owned
     SDK clients are closed automatically. No request/response/exception bodies
     are logged. An authorized attempt gets one metadata-only audit record,
     including configuration/input failures; unauthorized attempts get none.
+    ``demo=True`` uses only a fixed offline adapter, with a distinct audit model
+    name and no dependence on OpenAI credentials or model/timeout settings.
     """
     if (
         not getattr(user, 'is_authenticated', False)
@@ -207,7 +210,9 @@ def generate_task_suggestions(*, assignment, user, client=None):
     ):
         return SuggestionResult(failure=GenerationFailure.FORBIDDEN)
 
-    model = settings.OPENAI_MODEL
+    if demo:
+        client = DemoSuggestionClient()
+    model = DEMO_MODEL_NAME if demo else settings.OPENAI_MODEL
     valid_model = isinstance(model, str) and 1 <= len(model.strip()) <= 100
     model = model.strip() if valid_model else '(unconfigured)'
     try:
@@ -223,7 +228,7 @@ def generate_task_suggestions(*, assignment, user, client=None):
         return SuggestionResult(failure=GenerationFailure.AUDIT_ERROR)
 
     try:
-        timeout = float(settings.OPENAI_TIMEOUT_SECONDS)
+        timeout = 30.0 if demo else float(settings.OPENAI_TIMEOUT_SECONDS)
     except (ValueError, TypeError, OverflowError):
         timeout = 0
     if (
