@@ -22,7 +22,13 @@
             <button type="submit" class="primary">{% if plan %}Regenerate plan{% else %}Generate plan{% endif %}</button>
         </form>
         <a class="button" href="{% url 'planner:availability_list' %}">Manage availability</a>
+        {% if plan_summary and plan_summary.scheduled_unfinished_minutes %}
+        <a class="button" href="{% url 'planner:plan_export' %}" download>Export to calendar (.ics)</a>
+        {% endif %}
     </div>
+    {% if plan_summary and plan_summary.scheduled_unfinished_minutes %}
+    <p class="schedule-meta">The calendar file is a snapshot of your unfinished sessions. Download it again after regenerating your plan.</p>
+    {% endif %}
 
     {% if not has_plan_work %}
     <p>There are no tasks to schedule yet. <a href="{% url 'canvas_sync:connection' %}">Sync your assignments</a> or <a href="{% url 'dashboard' %}">open an assignment</a> to add checklist tasks.</p>
