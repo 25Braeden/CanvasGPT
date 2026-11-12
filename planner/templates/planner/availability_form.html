@@ -25,11 +25,14 @@
         </p>
 
         <div id="weekday-field">
-            <p>
-                {{ form.weekday.label_tag }}
-                {{ form.weekday }}
-                {{ form.weekday.errors }}
-            </p>
+            <fieldset class="weekday-choices">
+                <legend>Weekdays</legend>
+                {% for choice in form.weekdays %}
+                <span>{{ choice.tag }}<label for="{{ choice.id_for_label }}">{{ choice.choice_label }}</label></span>
+                {% endfor %}
+            </fieldset>
+            {{ form.weekdays.errors }}
+            <p class="helptext">Check every day this time repeats. Each day is saved as its own block.</p>
         </div>
 
         <div id="date-field">

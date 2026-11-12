@@ -95,7 +95,7 @@ class AvailabilityViewTests(PlannerViewTestCase):
             reverse('planner:availability_add'),
             {
                 'recurrence': 'weekly',
-                'weekday': AvailabilityBlock.Weekday.WEDNESDAY,
+                'weekdays': AvailabilityBlock.Weekday.WEDNESDAY,
                 'date': '2026-10-20',
                 'start_time': '17:00',
                 'end_time': '19:00',
@@ -115,7 +115,7 @@ class AvailabilityViewTests(PlannerViewTestCase):
             {
                 'recurrence': 'none',
                 'date': '2026-10-20',
-                'weekday': AvailabilityBlock.Weekday.WEDNESDAY,
+                'weekdays': AvailabilityBlock.Weekday.WEDNESDAY,
                 'start_time': '09:00',
                 'end_time': '10:30',
             },
@@ -131,8 +131,8 @@ class AvailabilityViewTests(PlannerViewTestCase):
         cases = [
             {'recurrence': 'weekly', 'start_time': '17:00', 'end_time': '19:00'},
             {'recurrence': 'none', 'start_time': '17:00', 'end_time': '19:00'},
-            {'recurrence': 'weekly', 'weekday': 0, 'start_time': '19:00', 'end_time': '17:00'},
-            {'recurrence': 'weekly', 'weekday': 0, 'start_time': '17:00', 'end_time': '17:00'},
+            {'recurrence': 'weekly', 'weekdays': 0, 'start_time': '19:00', 'end_time': '17:00'},
+            {'recurrence': 'weekly', 'weekdays': 0, 'start_time': '17:00', 'end_time': '17:00'},
         ]
         for data in cases:
             response = self.client.post(url, data)
@@ -144,7 +144,7 @@ class AvailabilityViewTests(PlannerViewTestCase):
             reverse('planner:availability_add'),
             {
                 'recurrence': 'weekly',
-                'weekday': 0,
+                'weekdays': 0,
                 'start_time': '17:00',
                 'end_time': '19:00',
                 'user': self.other.pk,
@@ -185,7 +185,7 @@ class AvailabilityViewTests(PlannerViewTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'America/New_York')
-        self.assertContains(response, 'name="weekday"')
+        self.assertContains(response, 'name="weekdays"')
         self.assertContains(response, 'name="date"')
 
     def test_invalid_time_range_shows_useful_error(self):
@@ -193,7 +193,7 @@ class AvailabilityViewTests(PlannerViewTestCase):
             reverse('planner:availability_add'),
             {
                 'recurrence': 'weekly',
-                'weekday': AvailabilityBlock.Weekday.MONDAY,
+                'weekdays': AvailabilityBlock.Weekday.MONDAY,
                 'start_time': '20:00',
                 'end_time': '18:00',
             },
@@ -242,12 +242,131 @@ class AvailabilityViewTests(PlannerViewTestCase):
 
         response = self.client.post(
             reverse('planner:availability_edit', args=[block.pk]),
-            {'recurrence': 'weekly', 'weekday': 0, 'start_time': '20:00', 'end_time': '18:00'},
+            {'recurrence': 'weekly', 'weekdays': 0, 'start_time': '20:00', 'end_time': '18:00'},
         )
 
         self.assertEqual(response.status_code, 400)
         block.refresh_from_db()
         self.assertEqual(block.end_time, datetime.time(20, 0))
+
+    def test_add_weekly_block_for_multiple_weekdays(self):
+        response = self.client.post(
+            reverse('planner:availability_add'),
+            {
+                'recurrence': 'weekly',
+                'weekdays': [
+                    AvailabilityBlock.Weekday.MONDAY,
+                    AvailabilityBlock.Weekday.WEDNESDAY,
+                    AvailabilityBlock.Weekday.FRIDAY,
+                ],
+                'start_time': '17:00',
+                'end_time': '19:00',
+            },
+        )
+
+        self.assertRedirects(response, reverse('planner:availability_list'))
+        blocks = AvailabilityBlock.objects.order_by('weekday')
+        self.assertEqual(
+            [block.weekday for block in blocks],
+            [
+                AvailabilityBlock.Weekday.MONDAY,
+                AvailabilityBlock.Weekday.WEDNESDAY,
+                AvailabilityBlock.Weekday.FRIDAY,
+            ],
+        )
+        for block in blocks:
+            self.assertEqual(block.user, self.user)
+            self.assertIsNone(block.date)
+            self.assertEqual(block.start_time, datetime.time(17, 0))
+            self.assertEqual(block.end_time, datetime.time(19, 0))
+
+    def test_one_time_block_ignores_checked_weekdays(self):
+        self.client.post(
+            reverse('planner:availability_add'),
+            {
+                'recurrence': 'none',
+                'date': '2026-10-20',
+                'weekdays': [0, 2],
+                'start_time': '09:00',
+                'end_time': '10:00',
+            },
+        )
+
+        block = AvailabilityBlock.objects.get()
+        self.assertEqual(block.date, datetime.date(2026, 10, 20))
+        self.assertIsNone(block.weekday)
+
+    def test_weekly_block_requires_a_weekday(self):
+        response = self.client.post(
+            reverse('planner:availability_add'),
+            {'recurrence': 'weekly', 'start_time': '17:00', 'end_time': '19:00'},
+        )
+
+        self.assertContains(response, 'Choose at least one weekday.', status_code=400)
+        self.assertFalse(AvailabilityBlock.objects.exists())
+
+    def test_invalid_weekday_choice_rejected(self):
+        response = self.client.post(
+            reverse('planner:availability_add'),
+            {'recurrence': 'weekly', 'weekdays': [0, 9], 'start_time': '17:00', 'end_time': '19:00'},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(AvailabilityBlock.objects.exists())
+
+    def test_invalid_time_range_creates_no_blocks_for_any_weekday(self):
+        response = self.client.post(
+            reverse('planner:availability_add'),
+            {'recurrence': 'weekly', 'weekdays': [0, 1, 2], 'start_time': '19:00', 'end_time': '17:00'},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(AvailabilityBlock.objects.exists())
+
+    def test_edit_form_checks_current_weekday(self):
+        block = self.make_block(weekday=AvailabilityBlock.Weekday.THURSDAY)
+
+        response = self.client.get(reverse('planner:availability_edit', args=[block.pk]))
+
+        self.assertEqual(response.context['form']['weekdays'].value(), [3])
+        self.assertContains(response, 'value="3" id="id_weekdays_3" checked')
+
+    def test_edit_keeps_block_and_adds_extra_weekdays(self):
+        block = self.make_block(weekday=AvailabilityBlock.Weekday.TUESDAY)
+
+        response = self.client.post(
+            reverse('planner:availability_edit', args=[block.pk]),
+            {'recurrence': 'weekly', 'weekdays': [0, 1, 3], 'start_time': '08:00', 'end_time': '09:00'},
+        )
+
+        self.assertRedirects(response, reverse('planner:availability_list'))
+        block.refresh_from_db()
+        self.assertEqual(block.weekday, AvailabilityBlock.Weekday.TUESDAY)
+        self.assertEqual(block.start_time, datetime.time(8, 0))
+        self.assertEqual(
+            sorted(
+                AvailabilityBlock.objects.filter(user=self.user).values_list(
+                    'weekday', 'start_time'
+                )
+            ),
+            [
+                (0, datetime.time(8, 0)),
+                (1, datetime.time(8, 0)),
+                (3, datetime.time(8, 0)),
+            ],
+        )
+
+    def test_edit_moves_block_when_current_weekday_unchecked(self):
+        block = self.make_block(weekday=AvailabilityBlock.Weekday.MONDAY)
+
+        self.client.post(
+            reverse('planner:availability_edit', args=[block.pk]),
+            {'recurrence': 'weekly', 'weekdays': [4], 'start_time': '18:00', 'end_time': '20:00'},
+        )
+
+        block.refresh_from_db()
+        self.assertEqual(block.weekday, AvailabilityBlock.Weekday.FRIDAY)
+        self.assertEqual(AvailabilityBlock.objects.count(), 1)
 
     def test_delete_block(self):
         block = self.make_block()
@@ -272,7 +391,7 @@ class AvailabilityViewTests(PlannerViewTestCase):
         self.assertEqual(self.client.get(edit_url).status_code, 404)
         response = self.client.post(
             edit_url,
-            {'recurrence': 'weekly', 'weekday': 3, 'start_time': '01:00', 'end_time': '02:00'},
+            {'recurrence': 'weekly', 'weekdays': 3, 'start_time': '01:00', 'end_time': '02:00'},
         )
         self.assertEqual(response.status_code, 404)
         response = self.client.post(reverse('planner:availability_delete', args=[block.pk]))
