@@ -56,7 +56,7 @@ def dashboard(request):
 def categorize_assignments(assignments, profile):
     try:
         student_timezone = ZoneInfo(profile.timezone)
-    except ZoneInfoNotFoundError:
+    except (ZoneInfoNotFoundError, ValueError, OSError):
         student_timezone = timezone.get_current_timezone()
 
     now = timezone.now()
