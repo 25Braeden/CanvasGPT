@@ -9,9 +9,9 @@ from django.views.decorators.http import require_POST
 from canvas_sync.models import Assignment
 from canvas_sync.views import get_assignment_sync_status
 
+from .drafts import generate_suggestion_draft, suggestion_context
 from .forms import TaskItemForm
 from .models import TaskItem
-from .services import generate_task_suggestions
 
 
 def _get_assignment(request, assignment_pk):
@@ -37,16 +37,14 @@ def _back_to_assignment(assignment):
 @require_POST
 def suggestions_generate(request, assignment_pk):
     assignment = _get_assignment(request, assignment_pk)
-    # Browser integration is deliberately demo-only until review/acceptance exists.
-    # Never take provider mode or client configuration from submitted form data.
-    result = generate_task_suggestions(
-        assignment=assignment, user=request.user, demo=True,
-    )
+    # Provider selection is server-side; form input cannot opt into live calls.
+    _, result = generate_suggestion_draft(assignment=assignment, user=request.user)
+    context = suggestion_context(assignment=assignment, user=request.user, result=result)
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         return JsonResponse({
             'html': render_to_string(
                 'ai_assistant/_suggestion_result.html',
-                {'suggestion_result': result},
+                context,
                 request=request,
             ),
         })
@@ -58,7 +56,7 @@ def suggestions_generate(request, assignment_pk):
             'assignment_sync_status': get_assignment_sync_status(assignment),
             'task_items': assignment.task_items.filter(user=request.user),
             'task_form': TaskItemForm(),
-            'suggestion_result': result,
+            **context,
         },
     )
 
@@ -77,6 +75,7 @@ def task_add(request, assignment_pk):
                 'assignment_sync_status': get_assignment_sync_status(assignment),
                 'task_items': assignment.task_items.filter(user=request.user),
                 'task_form': form,
+                **suggestion_context(assignment=assignment, user=request.user),
             },
             status=400,
         )

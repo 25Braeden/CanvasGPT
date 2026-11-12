@@ -74,6 +74,7 @@ class GenerationFailure(StrEnum):
     API_ERROR = 'api_error'
     INVALID_OUTPUT = 'invalid_output'
     AUDIT_ERROR = 'audit_error'
+    DRAFT_ERROR = 'draft_error'
 
 
 @dataclass(frozen=True)

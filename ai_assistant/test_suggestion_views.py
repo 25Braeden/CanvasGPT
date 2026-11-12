@@ -12,11 +12,11 @@ from canvas_sync.models import Assignment, Course, RubricCriterion
 from planner.models import PlanSession, StudyPlan
 
 from .demo import DEMO_MODEL_NAME
-from .models import AIRequest, TaskItem
+from .models import AIRequest, SuggestionDraft, TaskItem
 from .services import GenerationFailure, SuggestionResult, TaskSuggestion
 
 
-@override_settings(OPENAI_API_KEY='', OPENAI_MODEL='', OPENAI_TIMEOUT_SECONDS='invalid')
+@override_settings(AI_SUGGESTIONS_MODE='demo', OPENAI_API_KEY='', OPENAI_MODEL='', OPENAI_TIMEOUT_SECONDS='invalid')
 class DemoSuggestionViewTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -99,10 +99,14 @@ class DemoSuggestionViewTests(TestCase):
         self.assertTrue(response.context['suggestion_result'].success)
         self.assertContains(response, 'Evidence')
 
-    def test_preview_is_not_persisted_on_assignment_get(self):
+    def test_draft_persists_on_assignment_get_without_generating_again(self):
         self.client.post(self.url)
-        response = self.client.get(self.detail_url)
-        self.assertNotContains(response, 'Demo suggestion preview')
+        with patch('ai_assistant.drafts.generate_task_suggestions') as generate:
+            response = self.client.get(self.detail_url)
+            generate.assert_not_called()
+        self.assertContains(response, 'Demo suggestion preview')
+        self.assertContains(response, 'Draft saved until')
+        self.assertEqual(SuggestionDraft.objects.get().status, SuggestionDraft.Status.PENDING)
         self.assertEqual(AIRequest.objects.count(), 1)
 
     def test_empty_source_has_safe_fallback_and_manual_creation(self):
@@ -124,7 +128,7 @@ class DemoSuggestionViewTests(TestCase):
             GenerationFailure.INVALID_OUTPUT, GenerationFailure.AUDIT_ERROR,
         ):
             with self.subTest(failure=failure), patch(
-                'ai_assistant.views.generate_task_suggestions',
+                'ai_assistant.drafts.generate_task_suggestions',
                 return_value=SuggestionResult(failure=failure),
             ) as generate:
                 response = self.client.post(self.url)
@@ -136,7 +140,7 @@ class DemoSuggestionViewTests(TestCase):
 
     def test_suggestion_text_is_escaped(self):
         result = SuggestionResult(suggestions=(TaskSuggestion('<script>alert("x")</script>', 10),))
-        with patch('ai_assistant.views.generate_task_suggestions', return_value=result):
+        with patch('ai_assistant.drafts.generate_task_suggestions', return_value=result):
             response = self.client.post(self.url)
         self.assertContains(response, '&lt;script&gt;')
         self.assertNotContains(response, '<script>alert(')
@@ -147,7 +151,7 @@ class DemoSuggestionViewTests(TestCase):
 
     def test_other_users_assignment_is_not_generated(self):
         url = reverse('ai_assistant:suggestions_generate', args=[self.other_assignment.pk])
-        with patch('ai_assistant.views.generate_task_suggestions') as generate:
+        with patch('ai_assistant.drafts.generate_task_suggestions') as generate:
             self.assertEqual(self.client.post(url).status_code, 404)
             generate.assert_not_called()
         self.assertEqual(AIRequest.objects.count(), 0)
@@ -192,7 +196,7 @@ class DemoSuggestionViewTests(TestCase):
 
     def test_ajax_escapes_suggestion_text(self):
         result = SuggestionResult(suggestions=(TaskSuggestion('<script>alert("x")</script>', 10),))
-        with patch('ai_assistant.views.generate_task_suggestions', return_value=result):
+        with patch('ai_assistant.drafts.generate_task_suggestions', return_value=result):
             response = self.client.post(self.url, HTTP_X_REQUESTED_WITH='XMLHttpRequest')
         self.assertIn('&lt;script&gt;', response.json()['html'])
         self.assertNotIn('<script>', response.json()['html'])

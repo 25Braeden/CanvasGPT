@@ -15,7 +15,7 @@
         pending = true;
         button.disabled = true;
         form.setAttribute('aria-busy', 'true');
-        status.textContent = 'Generating demo suggestions…';
+        status.textContent = 'Generating suggestions…';
         try {
             const response = await window.fetch(form.action, {
                 method: 'POST',

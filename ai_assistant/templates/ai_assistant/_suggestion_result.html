@@ -1,17 +1,20 @@
-{% if suggestion_result %}
-    {% if suggestion_result.success %}
-    <div class="description-block">
-        <h3>Demo suggestion preview</h3>
-        <p>These suggestions are not in your checklist. Saving, editing, and accepting suggestions
-            will be added in a later step. You can add tasks manually below.</p>
-        <ol>
-            {% for suggestion in suggestion_result.suggestions %}
-            <li>{{ suggestion.description }} — {{ suggestion.estimated_minutes }} min</li>
-            {% endfor %}
-        </ol>
-        <p>This preview is not saved; leaving this page clears it.</p>
-    </div>
-    {% else %}
-    <p role="alert">{{ suggestion_result.message }}</p>
+{% if suggestion_result.failure %}
+<p role="alert">{{ suggestion_result.message }}</p>
+{% endif %}
+{% if suggestion_draft %}
+<div class="description-block">
+    <h3>{% if suggestion_draft.generation_mode == 'demo' %}Demo suggestion preview{% else %}Task suggestion preview{% endif %}</h3>
+    <p>These suggestions are not in your checklist. Editing and accepting suggestions
+        will be added in a later step. You can add tasks manually below.</p>
+    <ol>
+        {% for suggestion in suggestion_draft.suggestions %}
+        <li>{{ suggestion.description }} — {{ suggestion.estimated_minutes }} min</li>
+        {% endfor %}
+    </ol>
+    <p>Draft saved until {{ suggestion_draft.expires_at|date:"M j, Y, g:i A" }}.
+        You can leave this page and return to it. Generating again replaces this draft only on success.</p>
+    {% if suggestion_draft.generation_mode == 'demo' %}
+    <p>This saved draft contains fixed demo examples, not tailored AI suggestions.</p>
     {% endif %}
+</div>
 {% endif %}

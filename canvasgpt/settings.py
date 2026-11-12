@@ -28,7 +28,10 @@ SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', '')
 # CANVAS API KEY (PAT)
 CANVAS_API_KEY = os.getenv('CANVAS_TOKEN', '')
 
-# Optional AI suggestions. Missing/invalid configuration disables generation only.
+# Explicit server-side provider selection; never inferred from API-key presence.
+AI_SUGGESTIONS_MODE = os.getenv('AI_SUGGESTIONS_MODE', 'demo')
+
+# Optional live AI suggestions. Missing/invalid configuration disables generation only.
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
 OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-4o-mini')
 OPENAI_TIMEOUT_SECONDS = os.getenv('OPENAI_TIMEOUT_SECONDS', '30')

@@ -9,12 +9,19 @@
     .task-meta { color: var(--muted); font-size: 0.9rem; }
 </style>
 <section class="assignment-detail-section" aria-labelledby="suggestions-heading">
-    <h2 id="suggestions-heading">Task suggestions · Demo</h2>
+    <h2 id="suggestions-heading">Task suggestions{% if suggestion_mode == 'demo' %} · Demo{% endif %}</h2>
+    {% if suggestion_mode == 'demo' %}
     <p>This preview uses fixed example suggestions, not AI-generated tasks tailored to this assignment.
         No API key is needed and no assignment data is sent to OpenAI.</p>
+    {% elif suggestion_mode == 'openai' %}
+    <p>Generation sends this assignment's description and rubric text to OpenAI.
+        Suggestions stay separate from your checklist until you explicitly accept them.</p>
+    {% else %}
+    <p>Suggestion generation is not configured. You can still add checklist tasks manually.</p>
+    {% endif %}
     <form method="post" action="{% url 'ai_assistant:suggestions_generate' assignment.pk %}" data-suggestion-generation data-scroll-page="{% url 'ai_assistant:suggestions_generate' assignment.pk %}">
         {% csrf_token %}
-        <button type="submit">Generate demo suggestions</button>
+        <button type="submit">{% if suggestion_mode == 'demo' %}Generate demo suggestions{% else %}Generate task suggestions{% endif %}</button>
         <span role="status" data-generation-status></span>
     </form>
     <div data-suggestion-results aria-live="polite" aria-atomic="true">
