@@ -8,6 +8,7 @@ from django.db import DatabaseError
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 
 from ai_assistant.forms import TaskItemForm
 
@@ -34,6 +35,18 @@ def _sync_failure_message(error):
     if isinstance(error, CanvasSyncError):
         return "Canvas returned data that could not be synchronized."
     return "Canvas data could not be saved. Try syncing again later."
+
+
+def _sync_redirect(request):
+    """Return to the page that started the sync when it is a safe local URL."""
+    next_url = request.POST.get("next")
+    if next_url and url_has_allowed_host_and_scheme(
+        next_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return redirect(next_url)
+    return redirect("canvas_sync:connection")
 
 
 @login_required
@@ -107,7 +120,7 @@ def sync_canvas(request):
         )
         messages.error(request, _sync_failure_message(error))
 
-    return redirect("canvas_sync:connection")
+    return _sync_redirect(request)
 
 
 @login_required

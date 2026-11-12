@@ -49,6 +49,7 @@ def dashboard(request):
             'zero_point_assignments': zero_point,
             'due_soon_days': profile.due_soon_days,
             'sync_status': sync_status,
+            'has_canvas_connection': connection is not None,
         },
     )
 
