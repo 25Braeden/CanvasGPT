@@ -75,6 +75,15 @@ python manage.py runserver
 
 Open http://127.0.0.1:8000/.
 
+## Tests
+
+```bash
+python manage.py test
+node --test tests/
+```
+
+GitHub Actions runs both suites, plus a check for missing migrations, on every pull request and on pushes to `dev` and `main`.
+
 ## Study planner
 
 Signed-in students can schedule their checklist tasks around their own time:
