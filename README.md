@@ -79,7 +79,7 @@ Open http://127.0.0.1:8000/.
 
 ```bash
 python manage.py test
-node --test tests/
+node --test tests/*.test.cjs
 ```
 
 GitHub Actions runs both suites, plus a check for missing migrations, on every pull request and on pushes to `dev` and `main`.
