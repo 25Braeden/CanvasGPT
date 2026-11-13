@@ -1,0 +1,10 @@
+{% extends 'base.html' %}
+{% block title %}Draft unavailable | CanvasGPT{% endblock %}
+{% block content %}
+<section class="content-card">
+    <h1>Draft unavailable</h1>
+    <p role="alert">This draft changed, expired, or could not be updated safely. Return to the
+        assignment to load the latest draft or generate new suggestions. No changes were made by this request.</p>
+    <a class="button" href="{% url 'canvas_sync:assignment_detail' assignment.pk %}">Back to assignment</a>
+</section>
+{% endblock %}

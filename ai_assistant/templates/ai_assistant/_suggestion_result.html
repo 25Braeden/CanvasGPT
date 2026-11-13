@@ -1,0 +1,22 @@
+{% if suggestion_result.failure %}
+<p role="alert">{{ suggestion_result.message }}</p>
+{% endif %}
+{% if suggestion_draft %}
+<div class="description-block">
+    <h3>{% if suggestion_draft.generation_mode == 'demo' %}Demo suggestion preview{% else %}Task suggestion preview{% endif %}</h3>
+    <p>These suggestions are not in your checklist. Review and edit them before acceptance,
+        or add tasks manually below.</p>
+    <p>{{ suggestion_draft.selected_indices|length }} of {{ suggestion_draft.suggestions|length }} selected for acceptance.</p>
+    <p><a class="button" href="{% url 'ai_assistant:suggestions_review' suggestion_draft.pk %}">Review suggestions</a></p>
+    <ol>
+        {% for suggestion in suggestion_draft.suggestions %}
+        <li>{{ suggestion.description }} — {{ suggestion.estimated_minutes }} min</li>
+        {% endfor %}
+    </ol>
+    <p>Draft saved until {{ suggestion_draft.expires_at|date:"M j, Y, g:i A" }}.
+        You can leave this page and return to it. Generating again replaces this draft only on success.</p>
+    {% if suggestion_draft.generation_mode == 'demo' %}
+    <p>This saved draft contains fixed demo examples, not tailored AI suggestions.</p>
+    {% endif %}
+</div>
+{% endif %}
