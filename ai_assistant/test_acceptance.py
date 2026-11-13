@@ -17,7 +17,7 @@ from .acceptance import accept_suggestion_draft
 from .models import AIRequest, SuggestionDraft, TaskItem
 
 
-@override_settings(AI_SUGGESTIONS_MODE='demo', OPENAI_API_KEY='')
+@override_settings(AI_SUGGESTIONS_MODE='demo', GEMINI_API_KEY='')
 class SuggestionAcceptanceTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -65,7 +65,7 @@ class SuggestionAcceptanceTests(TestCase):
         self.original_plans = list(StudyPlan.objects.values())
         self.original_sessions = list(PlanSession.objects.values())
         self.original_audits = list(AIRequest.objects.values())
-        for target in ('ai_assistant.services.OpenAI', 'ai_assistant.drafts.generate_task_suggestions'):
+        for target in ('ai_assistant.gemini.requests.post', 'ai_assistant.drafts.generate_task_suggestions'):
             guard = patch(target, side_effect=AssertionError('Acceptance must not call generation'))
             guard.start()
             self.addCleanup(guard.stop)
@@ -267,7 +267,7 @@ class SuggestionAcceptanceTests(TestCase):
         self.assertEqual(client.post(self.url, data).status_code, 302)
         self.assertEqual(self.new_tasks().count(), 2)
 
-    @override_settings(AI_SUGGESTIONS_MODE='openai')
+    @override_settings(AI_SUGGESTIONS_MODE='gemini')
     def test_acceptance_does_not_depend_on_current_provider_or_key(self):
         self.assertEqual(self.client.post(self.url, self.post_data()).status_code, 302)
         self.assertEqual(self.new_tasks().count(), 2)

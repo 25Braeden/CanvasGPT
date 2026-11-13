@@ -83,7 +83,7 @@ class SuggestionDraft(models.Model):
 
     class GenerationMode(models.TextChoices):
         DEMO = 'demo', 'Demo'
-        OPENAI = 'openai', 'OpenAI'
+        GEMINI = 'gemini', 'Google Gemini'
 
     class Status(models.TextChoices):
         PENDING = 'pending', 'Pending review'

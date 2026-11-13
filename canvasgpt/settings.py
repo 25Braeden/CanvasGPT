@@ -32,9 +32,9 @@ CANVAS_API_KEY = os.getenv('CANVAS_TOKEN', '')
 AI_SUGGESTIONS_MODE = os.getenv('AI_SUGGESTIONS_MODE', 'demo')
 
 # Optional live AI suggestions. Missing/invalid configuration disables generation only.
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
-OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-4o-mini')
-OPENAI_TIMEOUT_SECONDS = os.getenv('OPENAI_TIMEOUT_SECONDS', '30')
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
+GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
+GEMINI_TIMEOUT_SECONDS = os.getenv('GEMINI_TIMEOUT_SECONDS', '30')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DJANGO_DEBUG', 'False').lower() == 'true'

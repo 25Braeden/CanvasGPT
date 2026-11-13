@@ -52,7 +52,7 @@ def generate_suggestion_draft(*, assignment, user, client=None):
 
     Returns (draft, result). A failed attempt leaves any previous pending draft
     unchanged. No database transaction/row lock is held during provider I/O.
-    ``client`` is an optional SDK-compatible test dependency, not form input.
+    ``client`` is an optional callable test dependency, not form input.
     """
     if not getattr(user, 'is_authenticated', False) or not Assignment.objects.filter(
         pk=assignment.pk, course__user_id=user.pk,
@@ -85,7 +85,7 @@ def generate_suggestion_draft(*, assignment, user, client=None):
                 ],
                 selected_indices=list(range(len(result.suggestions))),
                 generation_mode=mode,
-                model_name=DEMO_MODEL_NAME if mode == SuggestionDraft.GenerationMode.DEMO else settings.OPENAI_MODEL.strip(),
+                model_name=DEMO_MODEL_NAME if mode == SuggestionDraft.GenerationMode.DEMO else settings.GEMINI_MODEL.strip(),
             )
     except (DatabaseError, ValidationError, Assignment.DoesNotExist):
         return None, SuggestionResult(failure=GenerationFailure.DRAFT_ERROR)

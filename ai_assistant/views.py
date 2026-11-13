@@ -49,6 +49,8 @@ def suggestions_generate(request, assignment_pk):
     context = suggestion_context(assignment=assignment, user=request.user, result=result)
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         return JsonResponse({
+            'success': result.success,
+            'failure_code': result.failure,
             'html': render_to_string(
                 'ai_assistant/_suggestion_result.html',
                 context,

@@ -12,9 +12,10 @@
     <h2 id="suggestions-heading">Task suggestions{% if suggestion_mode == 'demo' %} · Demo{% endif %}</h2>
     {% if suggestion_mode == 'demo' %}
     <p>This preview uses fixed example suggestions, not AI-generated tasks tailored to this assignment.
-        No API key is needed and no assignment data is sent to OpenAI.</p>
-    {% elif suggestion_mode == 'openai' %}
-    <p>Generation sends this assignment's description and rubric text to OpenAI.
+        No API key is needed and no assignment data is sent to an AI provider.</p>
+    {% elif suggestion_mode == 'gemini' %}
+    <p>Generation sends this assignment's description and rubric text to Google Gemini.
+        Check Google's current data-use terms before sending student information.
         Suggestions stay separate from your checklist until you explicitly accept them.</p>
     {% else %}
     <p>Suggestion generation is not configured. You can still add checklist tasks manually.</p>

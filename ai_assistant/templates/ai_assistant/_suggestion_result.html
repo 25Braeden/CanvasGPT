@@ -1,5 +1,5 @@
 {% if suggestion_result.failure %}
-<p role="alert">{{ suggestion_result.message }}</p>
+<p role="alert" data-suggestion-failure="{{ suggestion_result.failure }}">{{ suggestion_result.message }}</p>
 {% endif %}
 {% if suggestion_draft %}
 <div class="description-block">

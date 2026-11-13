@@ -20,7 +20,7 @@ from .models import AIRequest, SuggestionDraft, TaskItem
 from .services import GenerationFailure, SuggestionResult, TaskSuggestion
 
 
-@override_settings(AI_SUGGESTIONS_MODE='demo', OPENAI_API_KEY='')
+@override_settings(AI_SUGGESTIONS_MODE='demo', GEMINI_API_KEY='')
 class SuggestionDraftTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -48,7 +48,7 @@ class SuggestionDraftTests(TestCase):
         self.url = reverse('canvas_sync:assignment_detail', args=[self.assignment.pk])
         self.generate_url = reverse('ai_assistant:suggestions_generate', args=[self.assignment.pk])
         self.original_tasks = list(TaskItem.objects.values())
-        guard = patch('ai_assistant.services.OpenAI', side_effect=AssertionError('Live API forbidden'))
+        guard = patch('ai_assistant.gemini.requests.post', side_effect=AssertionError('Live API forbidden'))
         guard.start()
         self.addCleanup(guard.stop)
 
@@ -211,22 +211,22 @@ class SuggestionDraftTests(TestCase):
         self.assertIn('Outline', html)
         self.assertIn('Draft saved until', html)
 
-    @override_settings(AI_SUGGESTIONS_MODE='openai', OPENAI_MODEL='test-model')
+    @override_settings(AI_SUGGESTIONS_MODE='gemini', GEMINI_MODEL='test-model')
     def test_real_provider_mode_reuses_the_same_persistence_path_with_mocked_generation(self):
         result = SuggestionResult(suggestions=(TaskSuggestion('Tailored task', 20),))
         with patch('ai_assistant.drafts.generate_task_suggestions', return_value=result) as generate:
             draft, returned = self.generate()
         generate.assert_called_once_with(assignment=self.assignment, user=self.user, demo=False)
         self.assertEqual(returned, result)
-        self.assertEqual(draft.generation_mode, 'openai')
+        self.assertEqual(draft.generation_mode, 'gemini')
         self.assertEqual(draft.model_name, 'test-model')
         response = self.client.get(self.url)
         self.assertContains(response, 'Task suggestion preview')
         self.assertContains(response, 'Generate task suggestions')
         self.assertNotContains(response, 'fixed example suggestions')
 
-    @override_settings(AI_SUGGESTIONS_MODE='openai', OPENAI_MODEL='gpt-4o-mini', OPENAI_TIMEOUT_SECONDS='30')
-    def test_openai_mode_without_key_does_not_fall_back_to_demo(self):
+    @override_settings(AI_SUGGESTIONS_MODE='gemini', GEMINI_MODEL='gemini-2.5-flash', GEMINI_TIMEOUT_SECONDS='30')
+    def test_gemini_mode_without_key_does_not_fall_back_to_demo(self):
         draft, result = self.generate()
         self.assertIsNone(draft)
         self.assertEqual(result.failure, GenerationFailure.UNAVAILABLE)
@@ -235,7 +235,7 @@ class SuggestionDraftTests(TestCase):
 
     def test_switching_mode_does_not_relabel_saved_demo_as_real_generation(self):
         self.make_draft()
-        with override_settings(AI_SUGGESTIONS_MODE='openai'):
+        with override_settings(AI_SUGGESTIONS_MODE='gemini'):
             response = self.client.get(self.url)
         self.assertContains(response, 'Generate task suggestions')
         self.assertContains(response, 'Demo suggestion preview')

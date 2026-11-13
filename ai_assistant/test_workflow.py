@@ -15,7 +15,7 @@ from .models import AIRequest, SuggestionDraft, TaskItem
 
 
 @override_settings(
-    AI_SUGGESTIONS_MODE='demo', OPENAI_API_KEY='', OPENAI_MODEL='', OPENAI_TIMEOUT_SECONDS='invalid',
+    AI_SUGGESTIONS_MODE='demo', GEMINI_API_KEY='', GEMINI_MODEL='', GEMINI_TIMEOUT_SECONDS='invalid',
 )
 class OfflineSuggestionWorkflowTests(TestCase):
     def test_generate_reload_review_save_accept_and_replay_with_csrf(self):
@@ -42,7 +42,7 @@ class OfflineSuggestionWorkflowTests(TestCase):
         detail_url = reverse('canvas_sync:assignment_detail', args=[assignment.pk])
         generate_url = reverse('ai_assistant:suggestions_generate', args=[assignment.pk])
 
-        with patch('ai_assistant.services.OpenAI', side_effect=AssertionError('No live API')):
+        with patch('ai_assistant.gemini.requests.post', side_effect=AssertionError('No live API')):
             client.get(detail_url)
             token = client.cookies['csrftoken'].value
             response = client.post(generate_url, {'csrfmiddlewaretoken': token}, HTTP_X_REQUESTED_WITH='XMLHttpRequest')

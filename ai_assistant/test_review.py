@@ -16,7 +16,7 @@ from planner.models import PlanSession, StudyPlan
 from .models import AIRequest, SuggestionDraft, TaskItem
 
 
-@override_settings(AI_SUGGESTIONS_MODE='demo', OPENAI_API_KEY='')
+@override_settings(AI_SUGGESTIONS_MODE='demo', GEMINI_API_KEY='')
 class SuggestionReviewTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -55,7 +55,7 @@ class SuggestionReviewTests(TestCase):
         self.original_plans = list(StudyPlan.objects.values())
         self.original_sessions = list(PlanSession.objects.values())
         self.original_audits = list(AIRequest.objects.values())
-        for target in ('ai_assistant.services.OpenAI', 'ai_assistant.drafts.generate_task_suggestions'):
+        for target in ('ai_assistant.gemini.requests.post', 'ai_assistant.drafts.generate_task_suggestions'):
             guard = patch(target, side_effect=AssertionError('Review must not call generation'))
             guard.start()
             self.addCleanup(guard.stop)
@@ -270,7 +270,7 @@ class SuggestionReviewTests(TestCase):
             self.assertContains(response, '&lt;script&gt;')
             self.assertNotContains(response, '<script>alert(')
 
-    @override_settings(AI_SUGGESTIONS_MODE='openai')
+    @override_settings(AI_SUGGESTIONS_MODE='gemini')
     def test_review_uses_saved_origin_not_current_provider_settings(self):
         self.assertContains(self.client.get(self.url), 'Demo draft:')
         self.assertEqual(self.client.post(self.url, self.post_data()).status_code, 302)

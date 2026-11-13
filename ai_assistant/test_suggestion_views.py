@@ -16,7 +16,7 @@ from .models import AIRequest, SuggestionDraft, TaskItem
 from .services import GenerationFailure, SuggestionResult, TaskSuggestion
 
 
-@override_settings(AI_SUGGESTIONS_MODE='demo', OPENAI_API_KEY='', OPENAI_MODEL='', OPENAI_TIMEOUT_SECONDS='invalid')
+@override_settings(AI_SUGGESTIONS_MODE='demo', GEMINI_API_KEY='', GEMINI_MODEL='', GEMINI_TIMEOUT_SECONDS='invalid')
 class DemoSuggestionViewTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -49,7 +49,7 @@ class DemoSuggestionViewTests(TestCase):
         self.tasks_before = list(TaskItem.objects.order_by('pk').values())
         self.sessions_before = list(PlanSession.objects.order_by('pk').values())
         self.plans_before = list(StudyPlan.objects.order_by('pk').values())
-        guard = patch('ai_assistant.services.OpenAI', side_effect=AssertionError('Live API forbidden'))
+        guard = patch('ai_assistant.gemini.requests.post', side_effect=AssertionError('Live API forbidden'))
         self.sdk = guard.start()
         self.addCleanup(guard.stop)
 
@@ -209,7 +209,7 @@ class DemoSuggestionViewTests(TestCase):
         self.assertEqual(self.client.post(other_url, HTTP_X_REQUESTED_WITH='XMLHttpRequest').status_code, 404)
         self.assertEqual(AIRequest.objects.count(), 0)
 
-    @override_settings(OPENAI_API_KEY='fake-key-never-use', OPENAI_MODEL='gpt-4o-mini')
+    @override_settings(GEMINI_API_KEY='fake-key-never-use', GEMINI_MODEL='gemini-2.5-flash')
     def test_form_cannot_switch_demo_to_live_generation(self):
         response = self.client.post(self.url, {'demo': 'false', 'model': 'live-model'})
         self.assertTrue(response.context['suggestion_result'].success)

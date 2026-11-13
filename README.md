@@ -80,11 +80,11 @@ Open http://127.0.0.1:8000/.
 The assignment page has a **Generate demo suggestions** button and persistent
 pending drafts. Demo is the default generation mode: it uses fixed, generic
 mocked suggestions, not AI-generated tasks tailored to the assignment. No API
-request is made in demo mode, even if an OpenAI key is present in `.env`.
+request is made in demo mode, even if a Gemini key is present in `.env`.
 
 ```dotenv
 AI_SUGGESTIONS_MODE=demo
-OPENAI_API_KEY=
+GEMINI_API_KEY=
 ```
 
 Provider selection is server-side only; submitted form values cannot change it.
@@ -94,7 +94,7 @@ To try it:
 1. Install dependencies (`python -m pip install -r requirements.txt`).
 2. Configure the existing Django settings in `.env` as described in Local setup.
    Keep `AI_SUGGESTIONS_MODE=demo` (also the default if unset) and leave
-   `OPENAI_API_KEY` blank. Run `python manage.py migrate` to create the new
+   `GEMINI_API_KEY` blank. Run `python manage.py migrate` to create the new
    `SuggestionDraft` table.
 3. Run `python manage.py runserver`, sign in, and open a synchronized assignment
    with a description or rubric criteria.
@@ -136,27 +136,69 @@ scroll-preservation behavior on full-page responses. In that fallback mode,
 refreshing a POST response may ask to resubmit and create another audit attempt,
 but never adds checklist tasks.
 
-## Switching providers (optional; keep demo mode for offline testing)
+## Gemini setup (optional hosted provider)
 
-Draft persistence is provider-independent: `ai_assistant/drafts.py` selects a
-provider and uses the same validated result contract for demo and OpenAI. To
-explicitly opt into live generation later, change `.env` and restart Django:
+Create an API key at Google AI Studio (<https://aistudio.google.com/apikey>).
+Check current model availability, free-tier quotas, regional eligibility, and
+Google's data-use terms before sending student assignment data. A free hosted
+service is not a privacy guarantee; do not send sensitive student information.
+Free-tier access is not guaranteed and quota exhaustion fails safely, without
+switching providers or adding tasks. Avoid enabling paid billing if you require
+strictly free usage.
+
+Add these settings to your private `.env` and restart Django:
 
 ```dotenv
-AI_SUGGESTIONS_MODE=openai
-OPENAI_API_KEY=replace-with-your-own-openai-api-key
-OPENAI_MODEL=gpt-4o-mini
-OPENAI_TIMEOUT_SECONDS=30
+AI_SUGGESTIONS_MODE=gemini
+GEMINI_API_KEY=replace-with-your-own-google-ai-studio-key
+GEMINI_MODEL=gemini-2.5-flash
+GEMINI_TIMEOUT_SECONDS=30
 ```
 
-Use a model that supports Chat Completions strict JSON-schema output. The timeout
-must be greater than zero and at most 120 seconds; automatic SDK retries are
-disabled. Never commit real credentials. Missing/invalid configuration disables
-live suggestions, not the offline browser demo, manual checklist creation, or
-the rest of the application. Restart Django after changing `.env`. Real API
-requests may incur charges. There is no automatic demo/live fallback. Unknown
-modes fail safely; merely adding an API key never enables live requests. Canvas
-credentials are configured separately and are never sent to OpenAI.
+Never commit real keys. Choose a currently available Gemini model supporting
+structured JSON output. The adapter uses Google's native `generateContent` REST
+API through the existing `requests` dependency; no additional SDK is required.
+The timeout must be greater than zero and at most 120 seconds. There are no
+automatic retries or provider fallbacks. Only the selected description and
+rubric text are sent, with separate untrusted-input instructions and the same
+strict task validation, metadata-only audit, safe failures, and explicit review
+and acceptance used by demo mode. Provider retention and use are governed by
+Google's terms.
+
+Apply the draft provider-choice migration and run the offline tests:
+
+```bash
+python manage.py migrate
+python manage.py test ai_assistant --noinput
+```
+
+Demo remains the default. Adding a Gemini key alone does not enable live calls.
+Existing drafts retain their original provider labels when switching modes.
+
+## Task-generation steering
+
+Edit `ai_assistant/prompts/task_suggestions.md` to steer Gemini task generation.
+The service reads this trusted UTF-8 file on each generation request and sends
+it as the separate system instruction, not as assignment content. Changes apply
+to the next request without a restart; existing drafts and accepted tasks are
+unchanged. Include this file in deployments, keep credentials and student data
+out of it, and do not allow students to edit it or select its path.
+
+The steering emphasizes revision rather than starting over when a draft already
+exists, coherent non-overlapping tasks, and realistic remaining-effort estimates.
+It asks the model to review total effort without imposing an arbitrary time cap.
+These are model guidelines, not a guarantee of accurate estimates; students must
+still review them. Server-side task validation remains authoritative. Missing,
+unreadable, empty, or oversized steering fails safely before an API request.
+No live API call is needed to test loading and sending the instructions.
+
+## Suggestion service and review workflow
+
+Draft persistence is provider-independent: `ai_assistant/drafts.py` selects demo
+or Gemini and uses the same validated result contract. Missing/invalid Gemini
+configuration disables live generation only; manual checklist creation remains
+available. Unknown provider modes fail safely, with no automatic fallback.
+Canvas credentials are configured separately and are never sent to Gemini.
 
 Saved drafts record their original provider mode/model. Switching the current
 mode does not relabel a saved demo draft as live-generated. The button and source
@@ -168,11 +210,10 @@ suggestion tuple, a safe `failure` code, and a manual-creation fallback `message
 Call it only on an explicit generation action, not during page rendering.
 
 Only the selected assignment's plain-text description and rubric titles and
-descriptions are sent to OpenAI. Assignment text is treated as untrusted input;
+descriptions are sent to Gemini. Assignment text is treated as untrusted input;
 no tools or link fetching are enabled. Canvas tokens, student account details,
 other assignments, and existing checklist tasks are not included. Source text
 is still sent to an external provider: review your institution's data policy.
-Requests use `store=False`; this is not a guarantee of zero provider retention.
 
 The service requires 1–20 suggestions, descriptions of 1–500 trimmed characters,
 and integer estimates of 1–480 minutes. Malformed, empty, refused, truncated, or
@@ -183,7 +224,7 @@ Every authorized generation attempt records only the user association, request
 type, timestamp, configured model, and success status in `AIRequest`. Configuration
 and input failures are unsuccessful attempts; invalid live model configuration
 uses `(unconfigured)` in the audit. Demo attempts use `demo-task-suggestions`
-and bypass OpenAI credential, model, and timeout configuration. Unauthorized attempts do not call the provider or
+and bypass Gemini credential, model, and timeout configuration. Unauthorized attempts do not call the provider or
 create an audit. Prompts, responses, secrets, and raw provider errors are not
 logged by the service. Audit-write failure withholds suggestions.
 
@@ -209,7 +250,7 @@ revalidates content, selection, and ownership, then appends only selected tasks.
 Task insertion and marking the draft accepted share one transaction, so any
 failure rolls back both. Repeated/stale acceptance cannot add duplicates.
 Manual additions and reordering use the same assignment lock to serialize
-ordering changes. No acceptance action calls OpenAI or writes an AIRequest.
+ordering changes. No acceptance action calls Gemini or writes an AIRequest.
 
 Acceptance does not automatically schedule tasks or regenerate the study plan.
 Regenerate the plan explicitly when ready; existing completed sessions are kept.
@@ -229,8 +270,8 @@ Run the isolated mocked tests with no API key or external requests:
 python manage.py test ai_assistant
 ```
 
-Tests inject an SDK-compatible client or patch its constructor; do not configure
-a live key for tests.
+Tests inject a callable provider or mock the Gemini HTTP boundary; no live key
+or external requests are required.
 
 ## Study planner
 

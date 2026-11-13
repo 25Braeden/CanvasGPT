@@ -24,7 +24,7 @@ Use this checklist to quickly verify the main CanvasGPT workflow without needing
 
 ## Suggestion Generation, Review, and Acceptance (Offline Demo)
 
-- [ ] Keep `AI_SUGGESTIONS_MODE=demo` and leave `OPENAI_API_KEY` blank; restart Django after environment changes.
+- [ ] Keep `AI_SUGGESTIONS_MODE=demo` and leave `GEMINI_API_KEY` blank; restart Django after environment changes.
 - [ ] Run migrations, then open an assignment with a description or rubric criteria.
 - [ ] Click **Generate demo suggestions**; confirm only the preview updates, without reloading the page.
 - [ ] Confirm no tasks were added automatically and completed work is unchanged.
@@ -38,7 +38,7 @@ Use this checklist to quickly verify the main CanvasGPT workflow without needing
 - [ ] Generate a new draft and discard it; confirm the checklist is unchanged.
 - [ ] In two review tabs, save in one then submit the stale one; confirm it cannot overwrite or accept newer work.
 - [ ] Confirm another student cannot review, discard, or accept this student's drafts.
-- [ ] Confirm no real OpenAI request was made; audit rows identify `demo-task-suggestions` and contain metadata only.
+- [ ] Confirm no real Gemini request was made; audit rows identify `demo-task-suggestions` and contain metadata only.
 - [ ] Check narrow/mobile layouts and keyboard navigation. Review saves retain scroll; acceptance returns to the assignment normally.
 - [ ] Repeat generation with JavaScript disabled; confirm the normal POST fallback and scroll restoration work.
 
