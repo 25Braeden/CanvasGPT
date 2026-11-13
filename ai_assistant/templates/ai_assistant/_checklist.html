@@ -1,3 +1,4 @@
+{% load static %}
 <style>
     .task-list { display: grid; gap: 0.75rem; margin: 1rem 0; padding: 0; list-style: none; }
     .task-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.85rem 1rem; border: 1px solid var(--border); border-radius: 1rem; background: var(--surface-translucent); }
@@ -7,7 +8,31 @@
     .task-actions form { margin: 0; }
     .task-meta { color: var(--muted); font-size: 0.9rem; }
 </style>
-<h2>Checklist</h2>
+<section class="assignment-detail-section" aria-labelledby="suggestions-heading">
+    <h2 id="suggestions-heading">Task suggestions{% if suggestion_mode == 'demo' %} · Demo{% endif %}</h2>
+    {% if suggestion_mode == 'demo' %}
+    <p>This preview uses fixed example suggestions, not AI-generated tasks tailored to this assignment.
+        No API key is needed and no assignment data is sent to an AI provider.</p>
+    {% elif suggestion_mode == 'gemini' %}
+    <p>Generation sends this assignment's description and rubric text to Google Gemini.
+        Check Google's current data-use terms before sending student information.
+        Suggestions stay separate from your checklist until you explicitly accept them.</p>
+    {% else %}
+    <p>Suggestion generation is not configured. You can still add checklist tasks manually.</p>
+    {% endif %}
+    <form method="post" action="{% url 'ai_assistant:suggestions_generate' assignment.pk %}" data-suggestion-generation data-scroll-page="{% url 'ai_assistant:suggestions_generate' assignment.pk %}">
+        {% csrf_token %}
+        <button type="submit">{% if suggestion_mode == 'demo' %}Generate demo suggestions{% else %}Generate task suggestions{% endif %}</button>
+        <span role="status" data-generation-status></span>
+    </form>
+    <div data-suggestion-results aria-live="polite" aria-atomic="true">
+        {% include 'ai_assistant/_suggestion_result.html' %}
+    </div>
+</section>
+<script src="{% static 'ai_assistant/suggestions.js' %}" defer></script>
+
+<section class="assignment-detail-section" aria-labelledby="checklist-heading">
+<h2 id="checklist-heading">Checklist</h2>
 {% if task_items %}
 <ol class="task-list">
     {% for task in task_items %}
@@ -19,17 +44,17 @@
             </div>
         </div>
         <div class="task-actions">
-            <form method="post" action="{% url 'ai_assistant:task_toggle' task.pk %}">{% csrf_token %}
+            <form method="post" action="{% url 'ai_assistant:task_toggle' task.pk %}" data-scroll-page="{% url 'canvas_sync:assignment_detail' assignment.pk %}">{% csrf_token %}
                 <button type="submit">{% if task.is_completed %}Mark incomplete{% else %}Mark complete{% endif %}</button>
             </form>
-            <form method="post" action="{% url 'ai_assistant:task_move' task.pk 'up' %}">{% csrf_token %}
+            <form method="post" action="{% url 'ai_assistant:task_move' task.pk 'up' %}" data-scroll-page="{% url 'canvas_sync:assignment_detail' assignment.pk %}">{% csrf_token %}
                 <button type="submit" aria-label="Move up"{% if forloop.first %} disabled{% endif %}>↑</button>
             </form>
-            <form method="post" action="{% url 'ai_assistant:task_move' task.pk 'down' %}">{% csrf_token %}
+            <form method="post" action="{% url 'ai_assistant:task_move' task.pk 'down' %}" data-scroll-page="{% url 'canvas_sync:assignment_detail' assignment.pk %}">{% csrf_token %}
                 <button type="submit" aria-label="Move down"{% if forloop.last %} disabled{% endif %}>↓</button>
             </form>
             <a class="button" href="{% url 'ai_assistant:task_edit' task.pk %}">Edit</a>
-            <form method="post" action="{% url 'ai_assistant:task_delete' task.pk %}">{% csrf_token %}
+            <form method="post" action="{% url 'ai_assistant:task_delete' task.pk %}" data-scroll-page="{% url 'canvas_sync:assignment_detail' assignment.pk %}">{% csrf_token %}
                 <button type="submit">Delete</button>
             </form>
         </div>
@@ -40,9 +65,10 @@
 <p>No tasks yet. Add your first one below.</p>
 {% endif %}
 
-<h3>Add a task</h3>
-<form method="post" action="{% url 'ai_assistant:task_add' assignment.pk %}">
+<h3 class="manual-task-heading">Add a task</h3>
+<form method="post" action="{% url 'ai_assistant:task_add' assignment.pk %}" data-scroll-page="{% url 'canvas_sync:assignment_detail' assignment.pk %}">
     {% csrf_token %}
     {{ task_form.as_p }}
     <button type="submit">Add task</button>
 </form>
+</section>
