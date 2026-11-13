@@ -28,7 +28,7 @@ class UserTimezoneMiddleware:
                     timezone_name,
                 )
                 timezone.activate(ZoneInfo(timezone_name))
-            except (StudentProfile.DoesNotExist, ZoneInfoNotFoundError):
+            except (StudentProfile.DoesNotExist, ZoneInfoNotFoundError, ValueError, OSError):
                 pass
 
         try:
