@@ -75,15 +75,6 @@ python manage.py runserver
 
 Open http://127.0.0.1:8000/.
 
-## Tests
-
-```bash
-python manage.py test
-node --test tests/*.test.cjs
-```
-
-GitHub Actions runs both suites, plus a check for missing migrations, on every pull request and on pushes to `dev` and `main`.
-
 ## Study planner
 
 Signed-in students can schedule their checklist tasks around their own time:
@@ -102,6 +93,8 @@ The dashboard moves assignments to **Past due** when their exact deadline is rea
 
 ## Tests
 
+GitHub Actions runs both suites, plus a check for missing migrations, on every pull request and on pushes to `dev` and `main`.
+
 Run the Django suite:
 
 ```bash
@@ -111,7 +104,7 @@ python manage.py test
 Run the shared scroll-restoration tests (requires Node.js 18 or later; no npm dependencies):
 
 ```bash
-node --test tests/preserve-scroll.test.cjs
+node --test tests/*.test.cjs
 ```
 
 For browser verification, scroll down a populated study week, toggle a session, and regenerate the plan: the selected week and scroll position should remain. Also check checklist actions, profile saves, and availability deletion. Click each week-navigation link and confirm the selected week changes while your scroll position remains (subject to the new page height). Navigation to a different page must not inherit the previous page's scroll position.
