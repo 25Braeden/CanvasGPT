@@ -95,11 +95,11 @@ class SuggestionReviewTests(TestCase):
         self.assertContains(response, 'Review task suggestions')
         self.assertContains(response, 'Outline the essay')
         self.assertContains(response, 'Save draft review')
-        self.assertContains(response, 'Discard draft')
+        self.assertContains(response, 'Cancel')
         self.assertContains(response, 'csrfmiddlewaretoken')
         self.assertContains(response, 'accounts/preserve-scroll.js')
         self.assertContains(response, 'Demo draft:')
-        self.assertContains(response, 'Accept selected tasks')
+        self.assertContains(response, 'Accept checklist')
         self.assertEqual(len(response.context['formset']), 2)
         self.assertTrue(response.context['formset'][0].initial['selected'])
         self.assert_original_draft()
@@ -129,6 +129,43 @@ class SuggestionReviewTests(TestCase):
         response = self.client.get(self.url)
         self.assertFalse(response.context['formset'][0].initial['selected'])
         self.assertFalse(response.context['formset'][1].initial['selected'])
+
+    def test_student_can_add_own_step_to_draft_without_creating_task(self):
+        data = self.post_data(**{
+            'suggestions-TOTAL_FORMS': '3',
+            'suggestions-2-description': 'Add citations',
+            'suggestions-2-estimated_minutes': '10',
+            'suggestions-2-selected': 'on',
+        })
+
+        response = self.client.post(self.url, data)
+
+        self.assertEqual(response.status_code, 302)
+        self.draft.refresh_from_db()
+        self.assertEqual(len(self.draft.suggestions), 3)
+        self.assertEqual(self.draft.suggestions[2], {
+            'description': 'Add citations',
+            'estimated_minutes': 10,
+        })
+        self.assertEqual(self.draft.student_added_indices, [2])
+        self.assertEqual(self.draft.selected_indices, [0, 2])
+
+    def test_student_can_remove_suggestion_from_draft_without_creating_task(self):
+        data = self.post_data(**{
+            'suggestions-1-DELETE': 'on',
+        })
+
+        response = self.client.post(self.url, data)
+
+        self.assertEqual(response.status_code, 302)
+        self.draft.refresh_from_db()
+        self.assertEqual(len(self.draft.suggestions), 1)
+        self.assertEqual(
+            self.draft.suggestions[0]['description'],
+            'Write an updated outline',
+        )
+        self.assertEqual(self.draft.selected_indices, [0])
+        self.assertEqual(self.draft.student_added_indices, [])
 
     def test_validation_rejects_invalid_fields_without_saving_any_changes(self):
         for overrides in (

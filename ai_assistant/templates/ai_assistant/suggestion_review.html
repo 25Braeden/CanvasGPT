@@ -4,74 +4,257 @@
 
 {% block content %}
 <style>
-    .suggestion-review h1 { font-size: clamp(1.75rem, 4vw, 2.5rem); }
-    .suggestion-review .review-selection { display: flex; align-items: center; gap: 0.75rem; }
-    .suggestion-review textarea { resize: vertical; }
-    .suggestion-review .review-footer { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border); }
+    .suggestion-review h1 {
+        font-size: clamp(1.75rem, 4vw, 2.5rem);
+    }
+
+    .suggestion-review .review-selection {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .suggestion-review textarea {
+        resize: vertical;
+    }
+
+    .suggestion-review .review-footer {
+        margin-top: 2rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--border);
+    }
+
+    .suggestion-review .remove-row {
+        margin-top: 1rem;
+    }
+
+    .suggestion-review .student-step-label {
+        font-weight: bold;
+    }
 </style>
+
 <section class="content-card wide suggestion-review">
-    <p><a href="{% url 'canvas_sync:assignment_detail' assignment.pk %}">← Back to assignment</a></p>
+    <p>
+        <a href="{% url 'canvas_sync:assignment_detail' assignment.pk %}">
+            ← Back to assignment
+        </a>
+    </p>
+
     <h1>Review task suggestions</h1>
     <h2>{{ assignment.title }}</h2>
-    <p>These suggestions are not in your checklist. Edit descriptions and estimates, and select
-        the suggestions you want to add. Saving this review does not create tasks;
-        only <strong>Accept selected tasks</strong> adds them to your checklist.</p>
+
+    <p>
+        These suggestions are not in your checklist. You can edit descriptions
+        and estimates, remove suggestions, or add your own step before accepting.
+        Saving this review does not create tasks. Only
+        <strong>Accept checklist</strong> adds the selected steps to your checklist.
+    </p>
+
     {% if draft.generation_mode == 'demo' %}
-    <p><strong>Demo draft:</strong> these are fixed example suggestions, not tailored AI output.</p>
+    <p>
+        <strong>Demo draft:</strong>
+        these are fixed example suggestions, not tailored AI output.
+    </p>
     {% endif %}
-    <p>Draft expires {{ draft.expires_at|date:"M j, Y, g:i A" }}. Saving does not extend its lifetime.</p>
+
+    <p>
+        Draft expires {{ draft.expires_at|date:"M j, Y, g:i A" }}.
+        Saving does not extend its lifetime.
+    </p>
+
     {% for message in messages %}
     <p role="status">{{ message }}</p>
     {% endfor %}
 
-    <form method="post" action="{% url 'ai_assistant:suggestions_review' draft.pk %}">
+    <form method="post" action="{% url 'ai_assistant:suggestions_review' draft.pk %}" id="suggestion-review-form">
         {% csrf_token %}
+
         {{ revision_form.non_field_errors }}
         {{ revision_form.revision.errors }}
         {{ revision_form.revision }}
+
         {{ formset.management_form }}
         {{ formset.non_form_errors }}
-        {% for form in formset %}
-        <fieldset>
-            <legend>Suggestion {{ forloop.counter }}</legend>
-            {{ form.non_field_errors }}
-            <p>
-                {{ form.selected.errors }}
-                <label class="review-selection" for="{{ form.selected.id_for_label }}">
-                    {{ form.selected }} {{ form.selected.label }}
-                </label>
-            </p>
-            <p>
-                {{ form.description.label_tag }}
-                {{ form.description.errors }}
-                {{ form.description }}
-            </p>
-            <p>
-                {{ form.estimated_minutes.label_tag }}
-                {{ form.estimated_minutes.errors }}
-                {{ form.estimated_minutes }}
-            </p>
-        </fieldset>
-        {% endfor %}
-        <p>Descriptions must be 1–500 characters; estimates must be whole numbers from 1–480 minutes.
-            Unselected suggestions stay in the draft. You may save with none selected.</p>
+
+        <div id="suggestion-forms">
+            {% for form in formset %}
+            <fieldset class="suggestion-row">
+                <legend>
+                    {% if forloop.counter0 in draft.student_added_indices %}
+                        Student step {{ forloop.counter }}
+                    {% else %}
+                        Suggestion {{ forloop.counter }}
+                    {% endif %}
+                </legend>
+
+                {{ form.non_field_errors }}
+
+                <p>
+                    {{ form.selected.errors }}
+                    <label class="review-selection" for="{{ form.selected.id_for_label }}">
+                        {{ form.selected }}
+                        {{ form.selected.label }}
+                    </label>
+                </p>
+
+                <p>
+                    {{ form.description.label_tag }}
+                    {{ form.description.errors }}
+                    {{ form.description }}
+                </p>
+
+                <p>
+                    {{ form.estimated_minutes.label_tag }}
+                    {{ form.estimated_minutes.errors }}
+                    {{ form.estimated_minutes }}
+                </p>
+
+                {% if form.DELETE %}
+                <p class="remove-row">
+                    {{ form.DELETE.errors }}
+                    <label for="{{ form.DELETE.id_for_label }}">
+                        {{ form.DELETE }}
+                        Remove this step
+                    </label>
+                </p>
+                {% endif %}
+            </fieldset>
+            {% endfor %}
+        </div>
+
+        <template id="empty-suggestion-form">
+            <fieldset class="suggestion-row">
+                <legend class="student-step-label">Student step</legend>
+
+                <p>
+                    <label class="review-selection" for="{{ formset.empty_form.selected.id_for_label }}">
+                        {{ formset.empty_form.selected }}
+                        Select for acceptance
+                    </label>
+                </p>
+
+                <p>
+                    {{ formset.empty_form.description.label_tag }}
+                    {{ formset.empty_form.description }}
+                </p>
+
+                <p>
+                    {{ formset.empty_form.estimated_minutes.label_tag }}
+                    {{ formset.empty_form.estimated_minutes }}
+                </p>
+
+                {% if formset.empty_form.DELETE %}
+                <p class="remove-row">
+                    <label for="{{ formset.empty_form.DELETE.id_for_label }}">
+                        {{ formset.empty_form.DELETE }}
+                        Remove this step
+                    </label>
+                </p>
+                {% endif %}
+            </fieldset>
+        </template>
+
+        <p>
+            <button type="button" id="add-student-step">
+                Add your own step
+            </button>
+        </p>
+
+        <p>
+            Descriptions must be 1–500 characters; estimates must be whole
+            numbers from 1–480 minutes. Removed steps will not be accepted.
+            You may save the draft before accepting it.
+        </p>
+
         <div class="form-actions">
-            <button type="submit">Save draft review</button>
-            <button type="submit" class="primary" formaction="{% url 'ai_assistant:suggestions_accept' draft.pk %}">Accept selected tasks</button>
-            <a href="{% url 'ai_assistant:suggestions_review' draft.pk %}">Reload saved draft</a>
+            <button type="submit">
+                Save draft review
+            </button>
+
+            <button
+                type="submit"
+                class="primary"
+                formaction="{% url 'ai_assistant:suggestions_accept' draft.pk %}">
+                Accept checklist
+            </button>
+
+            <a href="{% url 'ai_assistant:suggestions_review' draft.pk %}">
+                Reload saved draft
+            </a>
         </div>
     </form>
 
     <div class="review-footer">
-        <p>Accepting saves your current edits and adds only selected suggestions as new, incomplete tasks.
-            It closes this draft; unselected suggestions are not added. Existing tasks and completed
-            work stay unchanged. Your study plan is not automatically regenerated.</p>
-        <p>To remove this draft without adding tasks, discard it below.</p>
+        <p>
+            Accepting saves your current edits and appends the selected steps
+            to your existing checklist. Existing tasks and completed work stay
+            unchanged. Your study plan is not automatically regenerated.
+        </p>
+
+        <p>
+            To cancel this draft without adding any tasks, use Cancel below.
+        </p>
+
         <form method="post" action="{% url 'ai_assistant:suggestions_discard' draft.pk %}">
             {% csrf_token %}
-            <input type="hidden" name="revision" value="{{ revision_form.revision.value }}">
-            <button type="submit">Discard draft</button>
+            <input
+                type="hidden"
+                name="revision"
+                value="{{ revision_form.revision.value }}">
+
+            <button type="submit">
+                Cancel
+            </button>
         </form>
     </div>
 </section>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const addButton = document.getElementById('add-student-step');
+        const formsContainer = document.getElementById('suggestion-forms');
+        const totalForms = document.getElementById('id_suggestions-TOTAL_FORMS');
+        const emptyForm = document.getElementById('empty-suggestion-form');
+
+        if (!addButton || !formsContainer || !totalForms || !emptyForm) {
+            return;
+        }
+
+        addButton.addEventListener('click', function () {
+            const formNumber = parseInt(totalForms.value, 10);
+
+            const maxForms = document.getElementById('id_suggestions-MAX_NUM_FORMS');
+
+            if (
+                maxForms &&
+                maxForms.value &&
+                formNumber >= parseInt(maxForms.value, 10)
+            ) {
+                return;
+            }
+
+            const newFormHtml = emptyForm.innerHTML.replace(
+                /__prefix__/g,
+                formNumber
+            );
+
+            const wrapper = document.createElement('div');
+            wrapper.innerHTML = newFormHtml;
+
+            const newForm = wrapper.firstElementChild;
+
+            const selected = newForm.querySelector(
+                'input[name$="-selected"]'
+            );
+
+            if (selected) {
+                selected.checked = true;
+            }
+
+            formsContainer.appendChild(newForm);
+
+            totalForms.value = formNumber + 1;
+        });
+    });
+</script>
 {% endblock %}
