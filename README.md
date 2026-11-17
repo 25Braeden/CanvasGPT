@@ -295,6 +295,8 @@ The dashboard moves assignments to **Past due** when their exact deadline is rea
 
 ## Tests
 
+GitHub Actions runs both suites, plus a check for missing migrations, on every pull request and on pushes to `dev` and `main`.
+
 Run the Django suite:
 
 ```bash
@@ -304,7 +306,7 @@ python manage.py test
 Run the shared scroll-restoration tests (requires Node.js 18 or later; no npm dependencies):
 
 ```bash
-node --test tests/preserve-scroll.test.cjs tests/suggestions.test.cjs
+node --test tests/*.test.cjs
 ```
 
 For summary browser verification, check both desktop and narrow/mobile widths. Confirm that the summary wraps without horizontal overflow, appears above the weekly schedule, and stays unchanged when navigating to another week (including an empty week). Toggle a session and confirm minutes move between unfinished and completed totals. Check **Adjust availability** and **Review assignment** beside the appropriate warning reasons. Also check no-plan, no-task, completed-only, and wholly unscheduled plans for the guidance described above.
