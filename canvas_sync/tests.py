@@ -270,6 +270,32 @@ class AssignmentDetailPageTests(TestCase):
         )
         self.assertContains(response, "Canvas sync: Sync may be stale")
 
+    def test_stale_sync_status_offers_sync_now_button(self):
+        Assignment.objects.filter(pk=self.assignment.pk).update(
+            sync_status=Assignment.SyncStatus.SUCCESS,
+            last_synchronized_at=timezone.now() - timedelta(hours=25),
+        )
+
+        response = self.client.get(self.detail_url())
+
+        self.assertContains(response, "Sync now")
+        self.assertContains(
+            response,
+            f'<input type="hidden" name="next" value="{self.detail_url()}">',
+            html=True,
+        )
+
+    def test_recent_sync_status_hides_sync_now_button(self):
+        Assignment.objects.filter(pk=self.assignment.pk).update(
+            sync_status=Assignment.SyncStatus.SUCCESS,
+            sync_error_message="",
+            last_synchronized_at=timezone.now(),
+        )
+
+        response = self.client.get(self.detail_url())
+
+        self.assertNotContains(response, "Sync now")
+
     def test_displays_failed_sync_status_and_safe_error(self):
         CanvasConnection.objects.create(
             user=self.user,
@@ -943,6 +969,60 @@ class CanvasSyncTests(TestCase):
 
         self.assertEqual(assignments, [{"id": 200}, {"id": 201}])
         self.assertEqual(self.client_api.session.get.call_count, 2)
+
+    @patch.object(CanvasAPIClient, "sync_user_data")
+    def test_sync_view_returns_to_safe_next_url(self, mock_sync):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("canvas_sync:sync"),
+            {"next": reverse("dashboard")},
+        )
+
+        self.assertRedirects(
+            response,
+            reverse("dashboard"),
+            fetch_redirect_response=False,
+        )
+        mock_sync.assert_called_once_with(self.user)
+
+    @patch.object(CanvasAPIClient, "sync_user_data")
+    def test_sync_view_ignores_external_next_url(self, mock_sync):
+        self.client.force_login(self.user)
+
+        for next_url in ("https://evil.example.com/", "//evil.example.com/"):
+            response = self.client.post(
+                reverse("canvas_sync:sync"),
+                {"next": next_url},
+            )
+            self.assertRedirects(
+                response,
+                reverse("canvas_sync:connection"),
+                fetch_redirect_response=False,
+            )
+
+    @patch("canvas_sync.views.logger")
+    @patch.object(CanvasAPIClient, "sync_user_data")
+    def test_sync_failure_returns_to_next_url_with_message(
+        self,
+        mock_sync,
+        mock_logger,
+    ):
+        mock_sync.side_effect = CanvasSyncError("private response details")
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("canvas_sync:sync"),
+            {"next": reverse("dashboard")},
+            follow=True,
+        )
+
+        self.assertEqual(response.request["PATH_INFO"], reverse("dashboard"))
+        self.assertContains(
+            response,
+            "Canvas returned data that could not be synchronized.",
+        )
+        self.assertNotContains(response, "private response details")
 
     @patch.object(CanvasAPIClient, "sync_user_data")
     def test_sync_view_reports_success_and_supports_repeat_sync(self, mock_sync):

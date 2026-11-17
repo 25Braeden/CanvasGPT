@@ -28,6 +28,14 @@ SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', '')
 # CANVAS API KEY (PAT)
 CANVAS_API_KEY = os.getenv('CANVAS_TOKEN', '')
 
+# Explicit server-side provider selection; never inferred from API-key presence.
+AI_SUGGESTIONS_MODE = os.getenv('AI_SUGGESTIONS_MODE', 'demo')
+
+# Optional live AI suggestions. Missing/invalid configuration disables generation only.
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
+GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
+GEMINI_TIMEOUT_SECONDS = os.getenv('GEMINI_TIMEOUT_SECONDS', '30')
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DJANGO_DEBUG', 'False').lower() == 'true'
 

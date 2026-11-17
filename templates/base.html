@@ -153,6 +153,8 @@
 
         fieldset { margin: 1.5rem 0; padding: 1.25rem; border: 1px solid var(--border); border-radius: 1rem; }
         legend { padding: 0 0.5rem; font-weight: 800; }
+        .weekday-choices { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; }
+        .weekday-choices label { display: inline; margin: 0 0 0 0.35rem; font-weight: 600; }
         .section-divider { margin-top: 2.5rem; padding-top: 2rem; border-top: 1px solid var(--border); }
 
         .content-card.wide { width: min(100%, 56rem); }
@@ -169,6 +171,8 @@
         .sync-status.warning { border-color: #f4c46a; background: rgba(244, 196, 106, 0.18); }
         .sync-status.error { border-color: #f4a3a3; background: rgba(244, 163, 163, 0.18); }
         .sync-status strong { display: block; margin-bottom: 0.35rem; }
+        .sync-status .sync-message { color: var(--text); font-weight: 600; }
+        .sync-now-form { margin: 0.5rem 0 0; }
         .dashboard-sync-status {
             position: fixed;
             right: 1rem;

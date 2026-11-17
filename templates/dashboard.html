@@ -102,5 +102,10 @@
     {% if sync_status.last_synced %}
     <p>Last synced {{ sync_status.last_synced|date:"M j, Y, g:i A" }}.</p>
     {% endif %}
+    {% if has_canvas_connection %}
+    {% include 'canvas_sync/_sync_now.html' %}
+    {% elif sync_status.level != 'success' %}
+    <p><a href="{% url 'canvas_sync:connection' %}">Connect Canvas</a> to sync your assignments.</p>
+    {% endif %}
 </div>
 {% endblock %}
