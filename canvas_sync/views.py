@@ -9,6 +9,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
+from ai_assistant.drafts import suggestion_context
 from ai_assistant.forms import TaskItemForm
 
 from .forms import CanvasConnectionForm
@@ -128,6 +129,7 @@ def assignment_detail(request, pk):
             "assignment_sync_status": get_assignment_sync_status(assignment),
             "task_items": assignment.task_items.filter(user=request.user),
             "task_form": TaskItemForm(),
+            **suggestion_context(assignment=assignment, user=request.user),
         },
     )
 
