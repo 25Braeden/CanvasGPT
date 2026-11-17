@@ -118,6 +118,64 @@ class SuggestionAcceptanceTests(TestCase):
         self.assertEqual(self.draft.expires_at, expires_at)
         self.assertNotContains(response, 'Review suggestions')
 
+    def test_accept_student_added_step_uses_manual_flag(self):
+        data = self.post_data(**{
+            'suggestions-TOTAL_FORMS': '4',
+            'suggestions-3-description': 'Add citations',
+            'suggestions-3-estimated_minutes': '10',
+            'suggestions-3-selected': 'on',
+        })
+
+        response = self.client.post(self.url, data)
+
+        self.assertEqual(response.status_code, 302)
+
+        tasks = list(self.new_tasks())
+        self.assertEqual(
+            [task.description for task in tasks],
+            ['Edited outline', 'Edited review', 'Add citations'],
+        )
+        self.assertEqual(
+            [task.ai_generated for task in tasks],
+            [True, True, False],
+        )
+        self.assertEqual(
+            [task.order for task in tasks],
+            [6, 7, 8],
+        )
+
+        self.draft.refresh_from_db()
+        self.assertEqual(self.draft.status, 'accepted')
+        self.assertEqual(self.draft.student_added_indices, [3])
+
+    def test_accept_after_immediate_removal_and_student_addition(self):
+        # The browser disables removed fields but still submits their DELETE
+        # checkbox and retains every original form index.
+        data = self.post_data(**{
+            'suggestions-TOTAL_FORMS': '5',
+            'suggestions-0-DELETE': 'on',
+            'suggestions-3-DELETE': 'on',  # A blank added row removed immediately.
+            'suggestions-4-description': 'My own final step',
+            'suggestions-4-estimated_minutes': '10',
+            'suggestions-4-selected': 'on',
+        })
+        for field in ('description', 'estimated_minutes', 'selected'):
+            data.pop(f'suggestions-0-{field}', None)
+
+        response = self.client.post(self.url, data)
+
+        self.assertEqual(response.status_code, 302)
+        tasks = list(self.new_tasks())
+        self.assertEqual(
+            [task.description for task in tasks],
+            ['Edited review', 'My own final step'],
+        )
+        self.assertEqual([task.ai_generated for task in tasks], [True, False])
+        self.assertEqual([task.order for task in tasks], [6, 7])
+        self.draft.refresh_from_db()
+        self.assertEqual(self.draft.student_added_indices, [2])
+        self.assertEqual(self.draft.status, 'accepted')
+
     def test_repeated_acceptance_never_duplicates_tasks(self):
         self.assertEqual(self.client.post(self.url, self.post_data()).status_code, 302)
         self.assertEqual(self.client.post(self.url, self.post_data()).status_code, 409)
