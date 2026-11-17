@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load static %}
 
 {% block title %}Review suggestions | {{ assignment.title }} | CanvasGPT{% endblock %}
 
@@ -26,6 +27,10 @@
 
     .suggestion-review .remove-row {
         margin-top: 1rem;
+    }
+
+    .suggestion-review [hidden] {
+        display: none !important;
     }
 
     .suggestion-review .student-step-label {
@@ -110,13 +115,16 @@
                 </p>
 
                 {% if form.DELETE %}
-                <p class="remove-row">
-                    {{ form.DELETE.errors }}
-                    <label for="{{ form.DELETE.id_for_label }}">
-                        {{ form.DELETE }}
-                        Remove this step
-                    </label>
-                </p>
+                <div class="remove-row">
+                    <span data-remove-fallback>
+                        {{ form.DELETE.errors }}
+                        <label for="{{ form.DELETE.id_for_label }}">
+                            {{ form.DELETE }}
+                            Remove this step
+                        </label>
+                    </span>
+                    <button type="button" data-remove-step hidden>Remove this step</button>
+                </div>
                 {% endif %}
             </fieldset>
             {% endfor %}
@@ -144,12 +152,15 @@
                 </p>
 
                 {% if formset.empty_form.DELETE %}
-                <p class="remove-row">
-                    <label for="{{ formset.empty_form.DELETE.id_for_label }}">
-                        {{ formset.empty_form.DELETE }}
-                        Remove this step
-                    </label>
-                </p>
+                <div class="remove-row">
+                    <span data-remove-fallback>
+                        <label for="{{ formset.empty_form.DELETE.id_for_label }}">
+                            {{ formset.empty_form.DELETE }}
+                            Remove this step
+                        </label>
+                    </span>
+                    <button type="button" data-remove-step hidden>Remove this step</button>
+                </div>
                 {% endif %}
             </fieldset>
         </template>
@@ -209,52 +220,5 @@
     </div>
 </section>
 
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const addButton = document.getElementById('add-student-step');
-        const formsContainer = document.getElementById('suggestion-forms');
-        const totalForms = document.getElementById('id_suggestions-TOTAL_FORMS');
-        const emptyForm = document.getElementById('empty-suggestion-form');
-
-        if (!addButton || !formsContainer || !totalForms || !emptyForm) {
-            return;
-        }
-
-        addButton.addEventListener('click', function () {
-            const formNumber = parseInt(totalForms.value, 10);
-
-            const maxForms = document.getElementById('id_suggestions-MAX_NUM_FORMS');
-
-            if (
-                maxForms &&
-                maxForms.value &&
-                formNumber >= parseInt(maxForms.value, 10)
-            ) {
-                return;
-            }
-
-            const newFormHtml = emptyForm.innerHTML.replace(
-                /__prefix__/g,
-                formNumber
-            );
-
-            const wrapper = document.createElement('div');
-            wrapper.innerHTML = newFormHtml;
-
-            const newForm = wrapper.firstElementChild;
-
-            const selected = newForm.querySelector(
-                'input[name$="-selected"]'
-            );
-
-            if (selected) {
-                selected.checked = true;
-            }
-
-            formsContainer.appendChild(newForm);
-
-            totalForms.value = formNumber + 1;
-        });
-    });
-</script>
+<script src="{% static 'ai_assistant/suggestion-review.js' %}" defer></script>
 {% endblock %}

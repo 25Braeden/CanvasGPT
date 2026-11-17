@@ -100,6 +100,8 @@ class SuggestionReviewTests(TestCase):
         self.assertContains(response, 'accounts/preserve-scroll.js')
         self.assertContains(response, 'Demo draft:')
         self.assertContains(response, 'Accept checklist')
+        self.assertContains(response, 'ai_assistant/suggestion-review.js')
+        self.assertContains(response, 'type="button" data-remove-step hidden')
         self.assertEqual(len(response.context['formset']), 2)
         self.assertTrue(response.context['formset'][0].initial['selected'])
         self.assert_original_draft()
@@ -165,6 +167,18 @@ class SuggestionReviewTests(TestCase):
             'Write an updated outline',
         )
         self.assertEqual(self.draft.selected_indices, [0])
+        self.assertEqual(self.draft.student_added_indices, [])
+
+    def test_immediate_removal_can_save_without_disabled_field_values(self):
+        data = self.post_data(**{'suggestions-0-DELETE': 'on'})
+        for field in ('description', 'estimated_minutes', 'selected'):
+            data.pop(f'suggestions-0-{field}', None)
+
+        self.assertEqual(self.client.post(self.url, data).status_code, 302)
+        self.draft.refresh_from_db()
+        self.assertEqual(self.draft.suggestions, [
+            {'description': 'Revised review task', 'estimated_minutes': 20},
+        ])
         self.assertEqual(self.draft.student_added_indices, [])
 
     def test_validation_rejects_invalid_fields_without_saving_any_changes(self):
