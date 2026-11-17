@@ -16,7 +16,7 @@
     <a class="button" href="{% url 'planner:availability_list' %}">Manage availability</a>
 </div>
 
-<details class="assignment-section" open>
+<details class="assignment-section">
     <summary>Due soon <span>({{ due_soon_assignments|length }})</span></summary>
     <p>Due today through the next {{ due_soon_days }} days. <a href="{% url 'accounts:profile' %}">Change range</a></p>
     {% if due_soon_assignments %}
@@ -36,7 +36,7 @@
     {% endif %}
 </details>
 
-<details class="assignment-section" open>
+<details class="assignment-section">
     <summary>Due later <span>({{ due_later_assignments|length }})</span></summary>
     {% if due_later_assignments %}
     <ul class="assignment-list">
@@ -55,7 +55,7 @@
     {% endif %}
 </details>
 
-<details class="assignment-section" open>
+<details class="assignment-section">
     <summary>Zero-point assignments <span>({{ zero_point_assignments|length }})</span></summary>
     <p>Assignments that Canvas lists as worth zero points.</p>
     {% if zero_point_assignments %}
