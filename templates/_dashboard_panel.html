@@ -92,7 +92,8 @@
 
 </section>
 
-<div class="sync-status dashboard-sync-status {{ sync_status.level }}" role="status">
+<div class="sync-status dashboard-sync-status {{ sync_status.level }}" role="status"{% if sync_status.level == 'success' %} data-sync-notice{% endif %}>
+    {% if sync_status.level == 'success' %}{% include 'canvas_sync/_dismiss_sync.html' %}{% endif %}
     <strong>Canvas sync: {{ sync_status.label }}</strong>
     <p>{{ sync_status.message }}</p>
     {% if sync_status.last_synced %}

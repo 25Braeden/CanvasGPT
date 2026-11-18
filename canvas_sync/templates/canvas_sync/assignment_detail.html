@@ -34,7 +34,8 @@
     <p role="status">{{ message }}</p>
     {% endfor %}
 
-    <div class="sync-status {{ assignment_sync_status.level }}" role="status">
+    <div class="sync-status {{ assignment_sync_status.level }}" role="status"{% if assignment_sync_status.level == 'success' %} data-sync-notice{% endif %}>
+        {% if assignment_sync_status.level == 'success' %}{% include 'canvas_sync/_dismiss_sync.html' %}{% endif %}
         <strong>Canvas sync: {{ assignment_sync_status.label }}</strong>
         <p>{{ assignment_sync_status.message }}</p>
         {% include 'canvas_sync/_sync_now.html' with sync_status=assignment_sync_status %}

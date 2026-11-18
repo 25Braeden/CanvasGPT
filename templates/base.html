@@ -261,6 +261,23 @@
         .sync-status strong { display: block; margin-bottom: 0.35rem; }
         .sync-status .sync-message { color: var(--text); font-weight: 600; }
         .sync-now-form { margin: 0.5rem 0 0; }
+        .sync-status[data-sync-notice] { padding-right: 3.5rem; transition: opacity 200ms ease; }
+        .sync-status[data-sync-notice]:not(.dashboard-sync-status) { position: relative; }
+        .sync-status.sync-notice-dismissed { opacity: 0; pointer-events: none; }
+        .sync-status .sync-dismiss {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            min-height: 2.25rem;
+            width: 2.25rem;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            font-size: 1.5rem;
+            line-height: 1;
+        }
+        .sync-status .sync-dismiss:hover { transform: none; box-shadow: none; background: var(--bg); }
+        .sync-status .sync-dismiss:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
         .dashboard-sync-status {
             position: fixed;
             right: 1rem;
@@ -315,6 +332,7 @@
     </div>
     {% if dashboard_panel %}
     <script src="{% static 'accounts/dashboard-sections.js' %}" defer></script>
+    <script src="{% static 'accounts/sync-notices.js' %}" defer></script>
     {% endif %}
     <script src="{% static 'accounts/preserve-scroll.js' %}" defer></script>
     {% if user.is_authenticated %}
