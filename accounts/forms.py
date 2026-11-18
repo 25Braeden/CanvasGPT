@@ -29,8 +29,17 @@ class StudentProfileForm(forms.ModelForm):
             'daily_study_goal_minutes',
             'notifications_enabled',
             'dark_mode_enabled',
+            'reduced_motion_enabled',
             'due_soon_days',
         )
+
+        labels = {'reduced_motion_enabled': 'Reduced motion'}
+        help_texts = {
+            'reduced_motion_enabled': (
+                'Disable sliding animations and hover movement. This preference '
+                'overrides your browser or device motion setting while signed in.'
+            ),
+        }
 
     def clean_timezone(self):
         timezone_name = self.cleaned_data['timezone'].strip()

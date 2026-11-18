@@ -237,7 +237,8 @@ class AssignmentDetailPageTests(TestCase):
 
         response = self.client.get(self.detail_url())
 
-        self.assertContains(response, "0.00", count=2)
+        # One points label in the dashboard, plus assignment and rubric points.
+        self.assertContains(response, "0.00", count=3)
         self.assertContains(response, "0.00 points")
         self.assertNotContains(response, "Not provided")
 

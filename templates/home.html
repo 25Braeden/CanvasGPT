@@ -1,6 +1,6 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en"{% if user.is_authenticated and user.student_profile.reduced_motion_enabled %} class="reduced-motion"{% endif %}>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -189,6 +189,19 @@
             color: var(--muted);
             line-height: 1.55;
         }
+
+        .reduced-motion *, .reduced-motion *::before, .reduced-motion *::after {
+            animation: none !important;
+            transition: none !important;
+            scroll-behavior: auto !important;
+        }
+        .reduced-motion .button:hover, .reduced-motion button.button:hover { transform: none; }
+        {% if not user.is_authenticated %}
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+            .button:hover, button.button:hover { transform: none; }
+        }
+        {% endif %}
 
         @media (max-width: 760px) {
             .nav, .hero {

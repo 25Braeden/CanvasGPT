@@ -1,0 +1,107 @@
+{% with is_new_user=dashboard_panel.is_new_user due_soon_assignments=dashboard_panel.due_soon_assignments due_later_assignments=dashboard_panel.due_later_assignments zero_point_assignments=dashboard_panel.zero_point_assignments past_due_assignments=dashboard_panel.past_due_assignments due_soon_days=dashboard_panel.due_soon_days sync_status=dashboard_panel.sync_status has_canvas_connection=dashboard_panel.has_canvas_connection %}
+<section class="content-card wide">
+<h1>Dashboard</h1>
+{% if is_new_user %}
+<p>Welcome, {{ user.username }}.</p>
+{% else %}
+<p>Welcome back, {{ user.username }}.</p>
+{% endif %}
+<p>Your Canvas courses, assignments, and study plans will appear here.</p>
+<div class="form-actions">
+    <a class="button primary" href="{% url 'planner:plan_detail' %}">View study plan</a>
+    <a class="button" href="{% url 'planner:availability_list' %}">Manage availability</a>
+</div>
+
+<details class="assignment-section" data-dashboard-section="due-soon" open>
+    <summary>Due soon <span>({{ due_soon_assignments|length }})</span></summary>
+    <p>Due today through the next {{ due_soon_days }} days. <a href="{% url 'accounts:profile' %}">Change range</a></p>
+    {% if due_soon_assignments %}
+    <ul class="assignment-list">
+        {% for assignment in due_soon_assignments %}
+        <li class="assignment-row">
+            <div>
+                <strong><a href="{% url 'canvas_sync:assignment_detail' assignment.pk %}">{{ assignment.title }}</a></strong>
+                <p>{{ assignment.course.name }} · Due {{ assignment.due_at|date:"M j, Y, g:i A" }}</p>
+            </div>
+            {% if assignment.points_possible is not None %}<span>{{ assignment.points_possible }} pts</span>{% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p>Nothing is due soon.</p>
+    {% endif %}
+</details>
+
+<details class="assignment-section" data-dashboard-section="due-later">
+    <summary>Due later <span>({{ due_later_assignments|length }})</span></summary>
+    {% if due_later_assignments %}
+    <ul class="assignment-list">
+        {% for assignment in due_later_assignments %}
+        <li class="assignment-row">
+            <div>
+                <strong><a href="{% url 'canvas_sync:assignment_detail' assignment.pk %}">{{ assignment.title }}</a></strong>
+                <p>{{ assignment.course.name }}{% if assignment.due_at %} · Due {{ assignment.due_at|date:"M j, Y, g:i A" }}{% else %} · No due date provided{% endif %}</p>
+            </div>
+            {% if assignment.points_possible is not None %}<span>{{ assignment.points_possible }} pts</span>{% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p>No assignments are due after your due-soon range.</p>
+    {% endif %}
+</details>
+
+<details class="assignment-section" data-dashboard-section="zero-point">
+    <summary>Zero-point assignments <span>({{ zero_point_assignments|length }})</span></summary>
+    <p>Assignments that Canvas lists as worth zero points.</p>
+    {% if zero_point_assignments %}
+    <ul class="assignment-list">
+        {% for assignment in zero_point_assignments %}
+        <li class="assignment-row">
+            <div>
+                <strong><a href="{% url 'canvas_sync:assignment_detail' assignment.pk %}">{{ assignment.title }}</a></strong>
+                <p>{{ assignment.course.name }}{% if assignment.due_at %} · Due {{ assignment.due_at|date:"M j, Y, g:i A" }}{% else %} · No due date provided{% endif %}</p>
+            </div>
+            <span>{{ assignment.points_possible }} pts</span>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p>No zero-point assignments.</p>
+    {% endif %}
+</details>
+
+<details class="assignment-section" data-dashboard-section="past-due">
+    <summary>Past due <span>({{ past_due_assignments|length }})</span></summary>
+    {% if past_due_assignments %}
+    <ul class="assignment-list">
+        {% for assignment in past_due_assignments %}
+        <li class="assignment-row">
+            <div>
+                <strong><a href="{% url 'canvas_sync:assignment_detail' assignment.pk %}">{{ assignment.title }}</a></strong>
+                <p>{{ assignment.course.name }} · Was due {{ assignment.due_at|date:"M j, Y, g:i A" }}</p>
+            </div>
+            {% if assignment.points_possible is not None %}<span>{{ assignment.points_possible }} pts</span>{% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p>No past-due assignments.</p>
+    {% endif %}
+</details>
+
+</section>
+
+<div class="sync-status dashboard-sync-status {{ sync_status.level }}" role="status">
+    <strong>Canvas sync: {{ sync_status.label }}</strong>
+    <p>{{ sync_status.message }}</p>
+    {% if sync_status.last_synced %}
+    <p>Last synced {{ sync_status.last_synced|date:"M j, Y, g:i A" }}.</p>
+    {% endif %}
+    {% if has_canvas_connection %}
+    {% include 'canvas_sync/_sync_now.html' %}
+    {% elif sync_status.level != 'success' %}
+    <p><a href="{% url 'canvas_sync:connection' %}">Connect Canvas</a> to sync your assignments.</p>
+    {% endif %}
+</div>
+{% endwith %}

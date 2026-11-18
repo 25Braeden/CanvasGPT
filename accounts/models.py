@@ -30,6 +30,7 @@ class StudentProfile(models.Model):
     )
     notifications_enabled = models.BooleanField(default=True)
     dark_mode_enabled = models.BooleanField(default=False)
+    reduced_motion_enabled = models.BooleanField(default=False)
     due_soon_days = models.PositiveIntegerField(
         default=7,
         validators=[MinValueValidator(1), MaxValueValidator(365)],

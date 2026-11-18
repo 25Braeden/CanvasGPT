@@ -1,6 +1,6 @@
 {% load static %}
 <!doctype html>
-<html lang="en">
+<html lang="en"{% if user.is_authenticated and user.student_profile.reduced_motion_enabled %} class="reduced-motion"{% endif %}>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -55,6 +55,62 @@
             width: min(1120px, calc(100% - 2rem));
             margin: 0 auto;
             padding: 2rem 0 4rem;
+        }
+
+        .site-shell.workspace-shell { width: min(1600px, calc(100% - 2rem)); }
+        .workspace { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.5rem; align-items: start; max-width: 56rem; margin: 0 auto; }
+        .workspace.panel-open { grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); max-width: none; }
+        .workspace-dashboard > .content-card { view-transition-name: dashboard; }
+        .workspace.panel-open .workspace-content { view-transition-name: workspace-panel; }
+        [hidden] { display: none !important; }
+        .workspace-dashboard, .workspace-content { min-width: 0; }
+        .workspace .content-card { width: 100%; padding: clamp(1rem, 2vw, 2rem); }
+        .workspace .assignment-row { flex-wrap: wrap; }
+        .workspace .assignment-row > div { min-width: 0; overflow-wrap: anywhere; }
+        .workspace-content { overflow-wrap: anywhere; }
+
+        /* Native same-origin navigation keeps normal links, forms and history.
+           The dashboard's named snapshot moves between its centered and left positions. */
+        @view-transition { navigation: {% if user.is_authenticated and user.student_profile.reduced_motion_enabled %}none{% else %}auto{% endif %}; }
+        /* Keep the panels out of each other's path: move left, then reveal;
+           dismiss the right panel first before moving back to the center. */
+        ::view-transition-group(dashboard) {
+            animation-duration: 350ms;
+            animation-delay: {% if workspace_panel_open %}0ms{% else %}250ms{% endif %};
+            animation-timing-function: ease-in-out;
+            animation-fill-mode: both;
+        }
+        ::view-transition-image-pair(dashboard), ::view-transition-image-pair(workspace-panel) {
+            overflow: clip;
+            isolation: isolate;
+            border-radius: 2rem;
+        }
+        ::view-transition-new(workspace-panel) { animation: panel-slide-in 300ms ease-out 350ms both; }
+        ::view-transition-old(workspace-panel) { animation: panel-slide-out 250ms ease-in both; }
+        @keyframes panel-slide-in {
+            from { opacity: 0; transform: translateX(2rem); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes panel-slide-out {
+            from { opacity: 1; transform: translateX(0); }
+            to { opacity: 0; transform: translateX(2rem); }
+        }
+        .reduced-motion *, .reduced-motion *::before, .reduced-motion *::after {
+            animation: none !important;
+            transition: none !important;
+            scroll-behavior: auto !important;
+        }
+        .reduced-motion .button:hover, .reduced-motion button:hover { transform: none; }
+        {% if not user.is_authenticated %}
+        @media (prefers-reduced-motion: reduce) {
+            @view-transition { navigation: none; }
+            ::view-transition-group(*), ::view-transition-new(*), ::view-transition-old(*) { animation: none !important; }
+            *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+            .button:hover, button:hover { transform: none; }
+        }
+        {% endif %}
+        @media (max-width: 960px) {
+            .workspace.panel-open { grid-template-columns: minmax(0, 1fr); }
         }
 
         .site-nav {
@@ -199,7 +255,7 @@
     </style>
 </head>
 <body{% if user.is_authenticated and user.student_profile.dark_mode_enabled %} class="dark-mode"{% endif %}>
-    <div class="site-shell">
+    <div class="site-shell{% if dashboard_panel %} workspace-shell{% endif %}">
         <header class="site-nav">
             <a class="brand" href="{% url 'home' %}">
                 <span class="logo">CG</span>
@@ -221,8 +277,20 @@
                 {% endif %}
             </nav>
         </header>
-        <main>{% block content %}{% endblock %}</main>
+        <main{% if dashboard_panel %} class="workspace{% if workspace_panel_open %} panel-open{% endif %}"{% endif %}>
+            {% if dashboard_panel %}
+            <aside class="workspace-dashboard" aria-label="Dashboard" data-dashboard-user="{{ user.pk }}">
+                {% include '_dashboard_panel.html' %}
+            </aside>
+            {% endif %}
+            <div class="workspace-content" role="region" aria-label="Selected page"{% if dashboard_panel and not workspace_panel_open %} hidden{% endif %}>
+                {% block content %}{% endblock %}
+            </div>
+        </main>
     </div>
+    {% if dashboard_panel %}
+    <script src="{% static 'accounts/dashboard-sections.js' %}" defer></script>
+    {% endif %}
     <script src="{% static 'accounts/preserve-scroll.js' %}" defer></script>
 </body>
 </html>
