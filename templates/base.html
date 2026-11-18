@@ -118,11 +118,13 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 1rem;
+            gap: clamp(1.5rem, 4vw, 4rem);
+            row-gap: 1.5rem;
             margin-bottom: 4rem;
         }
 
         .brand {
+            flex-shrink: 0;
             display: flex;
             align-items: center;
             gap: 0.75rem;
@@ -148,6 +150,13 @@
             align-items: center;
             flex-wrap: wrap;
             gap: 0.75rem;
+        }
+
+        .nav-actions {
+            flex: 1;
+            min-width: 0;
+            justify-content: flex-end;
+            gap: 1rem clamp(1rem, 2vw, 2rem);
         }
 
         .button, button {
@@ -179,6 +188,25 @@
         }
 
         .button.primary:hover, button.primary:hover { background: var(--primary-dark); }
+
+        .site-nav .button {
+            padding: 0.5rem 0;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
+        }
+        .site-nav .button:hover {
+            background: transparent;
+            box-shadow: none;
+            transform: none;
+            text-decoration: underline;
+            text-underline-offset: 0.35rem;
+        }
+        .site-nav .button:focus-visible {
+            outline: 2px solid var(--primary);
+            outline-offset: 4px;
+        }
 
         .content-card {
             width: min(100%, 40rem);
@@ -252,6 +280,7 @@
 
         @media (max-width: 640px) {
             .site-nav { align-items: flex-start; flex-direction: column; margin-bottom: 2.5rem; }
+            .site-nav .nav-actions { flex: auto; width: 100%; justify-content: flex-start; gap: 0.75rem 1rem; }
         }
     </style>
 </head>
