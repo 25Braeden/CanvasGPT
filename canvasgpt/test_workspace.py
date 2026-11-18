@@ -13,7 +13,7 @@ class DetailsParser(HTMLParser):
         self.details = []
 
     def handle_starttag(self, tag, attrs):
-        if tag == 'details':
+        if tag == 'details' and 'data-dashboard-section' in dict(attrs):
             self.details.append(dict(attrs))
 
 

@@ -1,11 +1,15 @@
 from datetime import timezone as datetime_timezone
 from decimal import Decimal, InvalidOperation
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import parse_qs, unquote, urljoin, urlsplit
 
 import requests
+from django.core.exceptions import ValidationError
+from django.core.validators import URLValidator
 from django.db import DatabaseError, transaction
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
+
+from accounts.models import StudentProfile
 
 from .models import Assignment, CanvasConnection, Course, RubricCriterion
 
@@ -161,6 +165,39 @@ class CanvasAPIClient:
                 raise CanvasSyncError("Canvas returned an invalid pagination link.")
 
         return results
+
+    def get_profile(self):
+        return _require_object(self.get('users/self/profile'), 'user profile')
+
+    def _sync_profile_avatar(self, user):
+        """Optional profile refresh: never fail coursework sync for a missing avatar."""
+        try:
+            profile_data = self.get_profile()
+            avatar_url = profile_data.get('avatar_url')
+            if not isinstance(avatar_url, str):
+                avatar_url = ''
+            if avatar_url:
+                try:
+                    URLValidator(schemes=['https'])(avatar_url)
+                    parsed = urlsplit(avatar_url)
+                    token = self.session.headers.get('Authorization', '').removeprefix('Bearer ')
+                    if (
+                        len(avatar_url) > 2048
+                        or any(char.isspace() for char in avatar_url)
+                        or parsed.username is not None
+                        or parsed.password is not None
+                        or 'access_token' in {
+                            key.lower() for key in parse_qs(parsed.query, keep_blank_values=True)
+                        }
+                        or (token and token in unquote(avatar_url))
+                    ):
+                        avatar_url = ''
+                except (ValidationError, ValueError):
+                    avatar_url = ''
+            StudentProfile.objects.filter(user=user).update(canvas_avatar_url=avatar_url)
+        except (requests.RequestException, CanvasSyncError, DatabaseError):
+            # Retain the previous avatar if Canvas profile access is unavailable.
+            pass
 
     def get_active_courses(self):
         return self.get_paginated(
@@ -344,3 +381,5 @@ class CanvasAPIClient:
                 sync_error_message=SYNC_FAILURE_MESSAGE,
             )
             raise
+
+        self._sync_profile_avatar(user)

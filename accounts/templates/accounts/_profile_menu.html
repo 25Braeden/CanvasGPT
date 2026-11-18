@@ -1,0 +1,8 @@
+{% with display_name=user.get_short_name|default:user.username %}
+<a class="profile-avatar" href="{% url 'accounts:profile' %}" aria-label="View profile for {{ display_name }}" title="{{ display_name }} — Profile">
+    <span aria-hidden="true">{{ display_name|slice:':1'|upper }}</span>
+    {% if user.student_profile.canvas_avatar_url %}
+    <img src="{{ user.student_profile.canvas_avatar_url }}" alt="" referrerpolicy="no-referrer" data-profile-avatar>
+    {% endif %}
+</a>
+{% endwith %}

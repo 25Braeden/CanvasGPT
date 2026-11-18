@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700;800&amp;display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'accounts/profile-menu.css' %}">
     <style>
         :root {
             --bg: #f7f8fc;
@@ -263,15 +264,10 @@
             </a>
             <nav class="nav-actions" aria-label="Primary navigation">
                 {% if user.is_authenticated %}
-                    <span>Signed in as {{ user.username }}</span>
                     <a class="button" href="{% url 'dashboard' %}">Dashboard</a>
                     <a class="button" href="{% url 'planner:plan_detail' %}">Study plan</a>
                     <a class="button" href="{% url 'planner:availability_list' %}">Availability</a>
-                    <a class="button" href="{% url 'accounts:profile' %}">Profile</a>
-                    <form method="post" action="{% url 'accounts:logout' %}">
-                        {% csrf_token %}
-                        <button type="submit">Log out</button>
-                    </form>
+                    {% include 'accounts/_profile_menu.html' %}
                 {% else %}
                     <a class="button" href="{% url 'accounts:login' %}">Login</a>
                 {% endif %}
@@ -292,5 +288,8 @@
     <script src="{% static 'accounts/dashboard-sections.js' %}" defer></script>
     {% endif %}
     <script src="{% static 'accounts/preserve-scroll.js' %}" defer></script>
+    {% if user.is_authenticated %}
+    <script src="{% static 'accounts/profile-avatar.js' %}" defer></script>
+    {% endif %}
 </body>
 </html>

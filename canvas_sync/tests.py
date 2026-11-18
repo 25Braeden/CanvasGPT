@@ -359,6 +359,10 @@ class AssignmentDetailPageTests(TestCase):
 
 class CanvasSyncTests(TestCase):
     def setUp(self):
+        # Coursework tests must not call the optional profile endpoint over the network.
+        profile_patch = patch.object(CanvasAPIClient, 'get_profile', return_value={})
+        profile_patch.start()
+        self.addCleanup(profile_patch.stop)
         User = get_user_model()
 
         self.user = User.objects.create_user(
