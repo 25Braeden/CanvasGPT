@@ -1,10 +1,14 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en"{% if user.is_authenticated and user.student_profile.reduced_motion_enabled %} class="reduced-motion"{% endif %}>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CanvasGPT</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700;800&amp;display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'accounts/profile-menu.css' %}">
     <style>
         :root {
             --bg: #f7f8fc;
@@ -35,7 +39,7 @@
         body {
             margin: 0;
             min-height: 100vh;
-            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-family: "Source Sans 3", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             color: var(--text);
             background: radial-gradient(circle at top left, var(--page-glow) 0, transparent 32rem), var(--bg);
         }
@@ -50,11 +54,13 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 1rem;
+            gap: clamp(1.5rem, 4vw, 4rem);
+            row-gap: 1.5rem;
             margin-bottom: 5rem;
         }
 
         .brand {
+            flex-shrink: 0;
             display: flex;
             align-items: center;
             gap: 0.75rem;
@@ -80,16 +86,15 @@
             gap: 0.75rem;
         }
 
-        .nav-actions form {
-            margin: 0;
+        .nav-actions {
+            flex: 1;
+            min-width: 0;
+            justify-content: flex-end;
+            gap: 1rem clamp(1rem, 2vw, 2rem);
         }
 
-        .signed-in-label {
-            display: inline-flex;
-            align-items: center;
-            min-height: 2.75rem;
-            color: var(--muted);
-            font-weight: 700;
+        .nav-actions form {
+            margin: 0;
         }
 
         .button, button.button {
@@ -98,7 +103,7 @@
             justify-content: center;
             min-height: 2.75rem;
             padding: 0.75rem 1.1rem;
-            border-radius: 999px;
+            border-radius: 0.375rem;
             border: 1px solid var(--border);
             color: var(--text);
             background: var(--card);
@@ -122,6 +127,25 @@
 
         .button.primary:hover, button.button.primary:hover {
             background: var(--primary-dark);
+        }
+
+        .nav .button {
+            padding: 0.5rem 0;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
+        }
+        .nav .button:hover {
+            background: transparent;
+            box-shadow: none;
+            transform: none;
+            text-decoration: underline;
+            text-underline-offset: 0.35rem;
+        }
+        .nav .button:focus-visible {
+            outline: 2px solid var(--primary);
+            outline-offset: 4px;
         }
 
         .hero {
@@ -187,13 +211,29 @@
             line-height: 1.55;
         }
 
+        .reduced-motion *, .reduced-motion *::before, .reduced-motion *::after {
+            animation: none !important;
+            transition: none !important;
+            scroll-behavior: auto !important;
+        }
+        .reduced-motion .button:hover, .reduced-motion button.button:hover { transform: none; }
+        {% if not user.is_authenticated %}
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+            .button:hover, button.button:hover { transform: none; }
+        }
+        {% endif %}
+
         @media (max-width: 760px) {
             .nav, .hero {
                 display: block;
             }
 
             .nav-actions {
-                margin-top: 1rem;
+                width: 100%;
+                margin-top: 1.5rem;
+                justify-content: flex-start;
+                gap: 0.75rem 1rem;
             }
 
             .hero-actions {
@@ -211,13 +251,8 @@
             </div>
             <div class="nav-actions">
                 {% if user.is_authenticated %}
-                    <span class="signed-in-label">Signed in as {{ user.username }}</span>
                     <a class="button" href="{% url 'dashboard' %}">Dashboard</a>
-                    <a class="button" href="{% url 'accounts:profile' %}">Profile</a>
-                    <form method="post" action="{% url 'accounts:logout' %}">
-                        {% csrf_token %}
-                        <button class="button" type="submit">Log out</button>
-                    </form>
+                    {% include 'accounts/_profile_menu.html' %}
                 {% else %}
                     <a class="button" href="{% url 'accounts:login' %}">Login</a>
                 {% endif %}
@@ -260,5 +295,8 @@
         </section>
     </main>
     <script src="{% static 'accounts/preserve-scroll.js' %}" defer></script>
+    {% if user.is_authenticated %}
+    <script src="{% static 'accounts/profile-avatar.js' %}" defer></script>
+    {% endif %}
 </body>
 </html>

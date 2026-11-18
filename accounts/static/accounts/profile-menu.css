@@ -1,0 +1,31 @@
+.profile-avatar {
+    position: relative;
+    overflow: hidden;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 2.75rem;
+    height: 2.75rem;
+    margin-left: auto;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    color: var(--primary-dark);
+    background: var(--card);
+    font-size: 1.1rem;
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.profile-avatar img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: inherit;
+}
+.profile-avatar img[hidden] { display: none; }
+
+.profile-avatar:hover { border-color: var(--primary); background: var(--bg); }
+.profile-avatar:focus-visible { outline: 3px solid var(--primary); outline-offset: 3px; }

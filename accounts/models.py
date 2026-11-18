@@ -30,6 +30,8 @@ class StudentProfile(models.Model):
     )
     notifications_enabled = models.BooleanField(default=True)
     dark_mode_enabled = models.BooleanField(default=False)
+    reduced_motion_enabled = models.BooleanField(default=False)
+    canvas_avatar_url = models.URLField(max_length=2048, blank=True, default='')
     due_soon_days = models.PositiveIntegerField(
         default=7,
         validators=[MinValueValidator(1), MaxValueValidator(365)],
