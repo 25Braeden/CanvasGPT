@@ -28,6 +28,10 @@ SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', '')
 # CANVAS API KEY (PAT)
 CANVAS_API_KEY = os.getenv('CANVAS_TOKEN', '')
 
+# Encrypts saved Canvas access tokens. Optional: falls back to SECRET_KEY.
+# Changing whichever key is in use means users must re-enter their token.
+CANVAS_TOKEN_ENCRYPTION_KEY = os.getenv('CANVAS_TOKEN_ENCRYPTION_KEY', '')
+
 # Explicit server-side provider selection; never inferred from API-key presence.
 AI_SUGGESTIONS_MODE = os.getenv('AI_SUGGESTIONS_MODE', 'demo')
 

@@ -35,7 +35,7 @@ class CanvasConnectionForm(forms.ModelForm):
         if token:
             return token
 
-        if self.instance and self.instance.pk:
+        if self.instance and self.instance.pk and self.instance.access_token:
             return self.instance.access_token
 
         raise forms.ValidationError("Canvas access token is required.")

@@ -1,15 +1,20 @@
 from datetime import timedelta
+from importlib import import_module
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import requests
+from django.apps import apps as django_apps
 from django.contrib.auth import get_user_model
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, connection, transaction
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
 from canvasgpt.views import get_dashboard_sync_status
 
+from .fields import decrypt_value
+from .forms import CanvasConnectionForm
 from .models import Assignment, CanvasConnection, Course, RubricCriterion
 from .services import CanvasAPIClient, CanvasSyncError
 from .views import get_assignment_sync_status
@@ -1114,3 +1119,94 @@ class CanvasSyncTests(TestCase):
         )
         self.assertNotContains(response, "private network details")
         mock_logger.exception.assert_called_once()
+
+class CanvasTokenEncryptionTests(TestCase):
+    TOKEN = "1234~plain-canvas-token"
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="encrypted",
+            password="testpassword123",
+        )
+        self.connection = CanvasConnection.objects.create(
+            user=self.user,
+            canvas_base_url="https://example.instructure.com",
+            access_token=self.TOKEN,
+        )
+
+    def _raw_token(self):
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT access_token FROM canvas_sync_canvasconnection WHERE id = %s",
+                [self.connection.pk],
+            )
+            return cursor.fetchone()[0]
+
+    def _set_raw_token(self, value):
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "UPDATE canvas_sync_canvasconnection SET access_token = %s WHERE id = %s",
+                [value, self.connection.pk],
+            )
+
+    def test_token_is_encrypted_in_database(self):
+        raw = self._raw_token()
+
+        self.assertNotIn(self.TOKEN, raw)
+        self.assertEqual(decrypt_value(raw), self.TOKEN)
+
+    def test_token_reads_back_as_plain_text(self):
+        self.connection.refresh_from_db()
+
+        self.assertEqual(self.connection.access_token, self.TOKEN)
+
+    def test_undecryptable_token_requires_reentry(self):
+        self._set_raw_token("not-a-valid-ciphertext")
+        with self.assertLogs("canvas_sync.fields", level="WARNING"):
+            self.connection.refresh_from_db()
+
+        self.assertEqual(self.connection.access_token, "")
+        form = CanvasConnectionForm(
+            data={
+                "canvas_base_url": "https://example.instructure.com",
+                "access_token": "",
+            },
+            instance=self.connection,
+        )
+        self.assertFalse(form.is_valid())
+        self.assertIn("access_token", form.errors)
+
+    def test_admin_change_page_hides_token(self):
+        admin_user = get_user_model().objects.create_superuser(
+            username="admin",
+            password="testpassword123",
+        )
+        self.client.force_login(admin_user)
+
+        response = self.client.get(
+            reverse(
+                "admin:canvas_sync_canvasconnection_change",
+                args=[self.connection.pk],
+            )
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, self.TOKEN)
+        self.assertNotContains(response, self._raw_token())
+
+    def test_migration_encrypts_legacy_plain_text_token(self):
+        migration = import_module(
+            "canvas_sync.migrations.0009_encrypt_canvas_access_token"
+        )
+        self._set_raw_token(self.TOKEN)
+
+        schema_editor = SimpleNamespace(connection=connection)
+
+        migration.encrypt_tokens(django_apps, schema_editor)
+        encrypted = self._raw_token()
+        migration.encrypt_tokens(django_apps, schema_editor)
+
+        self.assertNotEqual(encrypted, self.TOKEN)
+        self.assertEqual(self._raw_token(), encrypted)  # idempotent
+        self.connection.refresh_from_db()
+        self.assertEqual(self.connection.access_token, self.TOKEN)

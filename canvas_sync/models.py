@@ -5,6 +5,8 @@ from django.conf import settings
 from django.db import models
 from django.utils.html import strip_tags
 
+from .fields import EncryptedTextField
+
 class CanvasConnection(models.Model):
     class SyncStatus(models.TextChoices):
         SUCCESS = 'success', 'Success'
@@ -17,7 +19,7 @@ class CanvasConnection(models.Model):
         related_name="canvas_connection",
     )
     canvas_base_url = models.URLField()
-    access_token = models.CharField(max_length=255)
+    access_token = EncryptedTextField()
     sync_status = models.CharField(
         max_length=20,
         choices=SyncStatus.choices,

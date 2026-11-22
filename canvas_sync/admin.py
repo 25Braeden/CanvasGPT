@@ -7,6 +7,7 @@ from .models import Assignment, CanvasConnection, Course, RubricCriterion
 class CanvasConnectionAdmin(admin.ModelAdmin):
     list_display = ('user', 'canvas_base_url')
     search_fields = ('user__username', 'canvas_base_url')
+    exclude = ('access_token',)
 
 
 @admin.register(Course)
