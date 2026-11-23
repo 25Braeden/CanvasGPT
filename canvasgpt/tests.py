@@ -3,13 +3,15 @@ from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
 from canvas_sync.models import Assignment, CanvasConnection, Course
+from canvas_sync.test_support import TEST_TOKEN_KEY, ciphertext_for_test
 
 
+@override_settings(CANVAS_TOKEN_ENCRYPTION_KEY=TEST_TOKEN_KEY)
 class DashboardAssignmentSectionsTests(TestCase):
     def setUp(self):
         User = get_user_model()
@@ -186,7 +188,7 @@ class DashboardAssignmentSectionsTests(TestCase):
         CanvasConnection.objects.create(
             user=self.user,
             canvas_base_url="https://example.instructure.com",
-            access_token="test-token",
+            access_token_ciphertext=ciphertext_for_test("test-token"),
             sync_status=CanvasConnection.SyncStatus.SUCCESS,
             last_synchronized_at=timezone.now(),
         )
@@ -224,7 +226,7 @@ class DashboardAssignmentSectionsTests(TestCase):
 
     def create_connection(self, **kwargs):
         kwargs.setdefault("canvas_base_url", "https://example.instructure.com")
-        kwargs.setdefault("access_token", "test-token")
+        kwargs.setdefault("access_token_ciphertext", ciphertext_for_test("test-token"))
         kwargs.setdefault("sync_status", CanvasConnection.SyncStatus.SUCCESS)
         return CanvasConnection.objects.create(user=self.user, **kwargs)
 

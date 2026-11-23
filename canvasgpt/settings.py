@@ -28,6 +28,13 @@ SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', '')
 # CANVAS API KEY (PAT)
 CANVAS_API_KEY = os.getenv('CANVAS_TOKEN', '')
 
+# A dedicated Fernet key; never fall back to Django's signing key.
+CANVAS_TOKEN_ENCRYPTION_KEY = os.getenv('CANVAS_TOKEN_ENCRYPTION_KEY', '')
+# Temporary, migration-only secret for installations that ran the original 0009.
+CANVAS_TOKEN_LEGACY_SECRET = os.getenv('CANVAS_TOKEN_LEGACY_SECRET', '')
+# Temporary input to the offline rotation command.
+CANVAS_TOKEN_NEXT_ENCRYPTION_KEY = os.getenv('CANVAS_TOKEN_NEXT_ENCRYPTION_KEY', '')
+
 # Explicit server-side provider selection; never inferred from API-key presence.
 AI_SUGGESTIONS_MODE = os.getenv('AI_SUGGESTIONS_MODE', 'demo')
 

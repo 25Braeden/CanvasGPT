@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 import requests
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -12,6 +12,7 @@ from canvasgpt.views import get_dashboard_sync_status
 
 from .models import Assignment, CanvasConnection, Course, RubricCriterion
 from .services import CanvasAPIClient, CanvasSyncError
+from .test_support import TEST_TOKEN_KEY, ciphertext_for_test
 from .views import get_assignment_sync_status
 
 
@@ -27,7 +28,7 @@ class CanvasModelTests(TestCase):
         self.connection = CanvasConnection.objects.create(
             user=self.user,
             canvas_base_url="https://flsouthern.instructure.com",
-            access_token="test-token",
+            access_token_ciphertext=ciphertext_for_test("test-token"),
         )
 
         self.course = Course.objects.create(
@@ -301,7 +302,7 @@ class AssignmentDetailPageTests(TestCase):
         CanvasConnection.objects.create(
             user=self.user,
             canvas_base_url="https://example.instructure.com",
-            access_token="canvas-token-secret",
+            access_token_ciphertext=ciphertext_for_test("canvas-token-secret"),
         )
         Assignment.objects.filter(pk=self.assignment.pk).update(
             sync_status=Assignment.SyncStatus.FAILED,
@@ -357,7 +358,10 @@ class AssignmentDetailPageTests(TestCase):
         self.assertEqual(response.status_code, 404)
 
 
+@override_settings(CANVAS_TOKEN_ENCRYPTION_KEY=TEST_TOKEN_KEY)
 class CanvasSyncTests(TestCase):
+    TOKEN = "test-token"
+
     def setUp(self):
         # Coursework tests must not call the optional profile endpoint over the network.
         profile_patch = patch.object(CanvasAPIClient, 'get_profile', return_value={})
@@ -373,13 +377,10 @@ class CanvasSyncTests(TestCase):
         self.connection = CanvasConnection.objects.create(
             user=self.user,
             canvas_base_url="https://example.instructure.com",
-            access_token="test-token",
+            access_token_ciphertext=ciphertext_for_test(self.TOKEN),
         )
 
-        self.client_api = CanvasAPIClient(
-            self.connection.canvas_base_url,
-            self.connection.access_token,
-        )
+        self.client_api = CanvasAPIClient(self.connection.canvas_base_url, self.TOKEN)
 
     def sample_courses(self):
         return [
@@ -556,7 +557,8 @@ class CanvasSyncTests(TestCase):
             response.context["form"]["canvas_base_url"].value(),
             "",
         )
-        self.assertNotContains(response, self.connection.access_token)
+        self.assertNotContains(response, self.TOKEN)
+        self.assertNotContains(response, self.connection.access_token_ciphertext)
 
     @patch.object(CanvasAPIClient, "get_course_assignments")
     @patch.object(CanvasAPIClient, "get_active_courses")
@@ -792,10 +794,7 @@ class CanvasSyncTests(TestCase):
             "Canvas sync failed. Check your Canvas connection.",
         )
 
-        self.assertNotIn(
-            self.connection.access_token,
-            assignment.sync_error_message,
-        )
+        self.assertNotIn(self.TOKEN, assignment.sync_error_message)
         self.connection.refresh_from_db()
         self.assertEqual(
             self.connection.sync_status,
@@ -821,7 +820,7 @@ class CanvasSyncTests(TestCase):
 
         self.assertEqual(sync_status["level"], "error")
         self.assertEqual(sync_status["label"], "Sync failed")
-        self.assertNotIn(self.connection.access_token, sync_status["message"])
+        self.assertNotIn(self.TOKEN, sync_status["message"])
 
     @patch.object(CanvasAPIClient, "get_active_courses")
     def test_malformed_courses_response_sets_failure_status(
@@ -1070,7 +1069,7 @@ class CanvasSyncTests(TestCase):
             "Canvas returned data that could not be synchronized.",
         )
         self.assertNotContains(response, "private response details")
-        mock_logger.exception.assert_called_once_with(
+        mock_logger.warning.assert_called_once_with(
             "Canvas synchronization failed for user ID %s.",
             self.user.pk,
         )
@@ -1096,8 +1095,8 @@ class CanvasSyncTests(TestCase):
             "Canvas rejected the saved access token. Check your Canvas connection.",
         )
         self.assertNotContains(response, "private API details")
-        self.assertNotContains(response, self.connection.access_token)
-        mock_logger.exception.assert_called_once()
+        self.assertNotContains(response, self.TOKEN)
+        mock_logger.warning.assert_called_once()
 
     @patch("canvas_sync.views.logger")
     @patch.object(CanvasAPIClient, "sync_user_data")
@@ -1118,4 +1117,4 @@ class CanvasSyncTests(TestCase):
             "Canvas could not be reached. Check your connection and try again.",
         )
         self.assertNotContains(response, "private network details")
-        mock_logger.exception.assert_called_once()
+        mock_logger.warning.assert_called_once()

@@ -7,6 +7,7 @@ app_name = "canvas_sync"
 urlpatterns = [
     path("connection/", views.canvas_connection, name="connection"),
     path("sync/", views.sync_canvas, name="sync"),
+    path("disconnect/", views.disconnect_canvas, name="disconnect"),
     path(
         "assignments/<int:pk>/",
         views.assignment_detail,
