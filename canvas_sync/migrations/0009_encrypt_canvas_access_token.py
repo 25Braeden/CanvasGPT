@@ -1,53 +1,35 @@
+from django.conf import settings
 from django.db import migrations
+from django.views.decorators.debug import sensitive_variables
 
 import canvas_sync.fields
-from canvas_sync.fields import decrypt_value, encrypt_value
+from canvas_sync.token_crypto import encrypt_token, token_cipher
 
 
-def _rewrite_tokens(apps, schema_editor, transform):
-    # Raw SQL so the field's own encrypt/decrypt hooks don't interfere.
-    table = apps.get_model("canvas_sync", "CanvasConnection")._meta.db_table
-    connection = schema_editor.connection
-    quoted_table = connection.ops.quote_name(table)
-    with connection.cursor() as cursor:
-        cursor.execute(f"SELECT id, access_token FROM {quoted_table}")
-        rows = cursor.fetchall()
-        for pk, token in rows:
-            new_token = transform(token)
-            if new_token is not None and new_token != token:
-                cursor.execute(
-                    f"UPDATE {quoted_table} SET access_token = %s WHERE id = %s",
-                    [new_token, pk],
-                )
-
-
+@sensitive_variables("rows", "token", "cipher")
 def encrypt_tokens(apps, schema_editor):
-    def transform(token):
-        if not token or decrypt_value(token) is not None:
-            return None  # empty or already encrypted
-        return encrypt_value(token)
-
-    _rewrite_tokens(apps, schema_editor, transform)
-
-
-def decrypt_tokens(apps, schema_editor):
-    def transform(token):
-        return decrypt_value(token) if token else None
-
-    _rewrite_tokens(apps, schema_editor, transform)
+    # At 0008 this column is plaintext. Installations that already ran the
+    # original 0009 skip this migration and are upgraded by 0010 instead.
+    model = apps.get_model("canvas_sync", "CanvasConnection")
+    connections = model.objects.using(schema_editor.connection.alias)
+    rows = list(connections.exclude(access_token="").values_list("pk", "access_token"))
+    if rows:
+        cipher = token_cipher(settings.CANVAS_TOKEN_ENCRYPTION_KEY)
+        for pk, token in rows:
+            connections.filter(pk=pk).update(access_token=encrypt_token(token, cipher=cipher))
 
 
 class Migration(migrations.Migration):
-
+    atomic = True
     dependencies = [
         ("canvas_sync", "0008_alter_rubriccriterion_canvas_rubric_criterion_id"),
     ]
-
     operations = [
         migrations.AlterField(
             model_name="canvasconnection",
             name="access_token",
             field=canvas_sync.fields.EncryptedTextField(),
         ),
-        migrations.RunPython(encrypt_tokens, decrypt_tokens),
+        # Never roll back by writing tokens as plaintext. Restore from backup.
+        migrations.RunPython(encrypt_tokens),
     ]

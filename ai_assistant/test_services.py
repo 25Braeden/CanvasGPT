@@ -12,6 +12,7 @@ from django.utils import timezone
 from .gemini import GeminiError, GeminiTimeout
 
 from canvas_sync.models import Assignment, CanvasConnection, Course, RubricCriterion
+from canvas_sync.test_support import ciphertext_for_test
 from planner.models import PlanSession, StudyPlan
 
 from .models import AIRequest, TaskItem
@@ -54,7 +55,7 @@ class SuggestionServiceTests(TestCase):
         )
         CanvasConnection.objects.create(
             user=cls.user, canvas_base_url='https://canvas.example.test',
-            access_token='fake-canvas-secret-do-not-send',
+            access_token_ciphertext=ciphertext_for_test('fake-canvas-secret-do-not-send'),
         )
         cls.task = TaskItem.objects.create(
             assignment=cls.assignment, user=cls.user, description='Completed private work',

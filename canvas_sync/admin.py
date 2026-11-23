@@ -7,7 +7,10 @@ from .models import Assignment, CanvasConnection, Course, RubricCriterion
 class CanvasConnectionAdmin(admin.ModelAdmin):
     list_display = ('user', 'canvas_base_url')
     search_fields = ('user__username', 'canvas_base_url')
-    exclude = ('access_token',)
+    readonly_fields = ('user', 'canvas_base_url', 'sync_status', 'sync_error_message', 'last_synchronized_at')
+
+    def has_add_permission(self, request):
+        return False
 
 
 @admin.register(Course)

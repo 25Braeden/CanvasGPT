@@ -5,7 +5,6 @@ from django.conf import settings
 from django.db import models
 from django.utils.html import strip_tags
 
-from .fields import EncryptedTextField
 
 class CanvasConnection(models.Model):
     class SyncStatus(models.TextChoices):
@@ -19,7 +18,7 @@ class CanvasConnection(models.Model):
         related_name="canvas_connection",
     )
     canvas_base_url = models.URLField()
-    access_token = EncryptedTextField()
+    access_token_ciphertext = models.TextField(db_column="access_token", editable=False)
     sync_status = models.CharField(
         max_length=20,
         choices=SyncStatus.choices,

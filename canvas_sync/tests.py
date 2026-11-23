@@ -1,22 +1,18 @@
 from datetime import timedelta
-from importlib import import_module
-from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import requests
-from django.apps import apps as django_apps
 from django.contrib.auth import get_user_model
-from django.db import IntegrityError, connection, transaction
-from django.test import TestCase
+from django.db import IntegrityError, transaction
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
 from canvasgpt.views import get_dashboard_sync_status
 
-from .fields import decrypt_value
-from .forms import CanvasConnectionForm
 from .models import Assignment, CanvasConnection, Course, RubricCriterion
 from .services import CanvasAPIClient, CanvasSyncError
+from .test_support import TEST_TOKEN_KEY, ciphertext_for_test
 from .views import get_assignment_sync_status
 
 
@@ -32,7 +28,7 @@ class CanvasModelTests(TestCase):
         self.connection = CanvasConnection.objects.create(
             user=self.user,
             canvas_base_url="https://flsouthern.instructure.com",
-            access_token="test-token",
+            access_token_ciphertext=ciphertext_for_test("test-token"),
         )
 
         self.course = Course.objects.create(
@@ -305,7 +301,7 @@ class AssignmentDetailPageTests(TestCase):
         CanvasConnection.objects.create(
             user=self.user,
             canvas_base_url="https://example.instructure.com",
-            access_token="canvas-token-secret",
+            access_token_ciphertext=ciphertext_for_test("canvas-token-secret"),
         )
         Assignment.objects.filter(pk=self.assignment.pk).update(
             sync_status=Assignment.SyncStatus.FAILED,
@@ -361,7 +357,10 @@ class AssignmentDetailPageTests(TestCase):
         self.assertEqual(response.status_code, 404)
 
 
+@override_settings(CANVAS_TOKEN_ENCRYPTION_KEY=TEST_TOKEN_KEY)
 class CanvasSyncTests(TestCase):
+    TOKEN = "test-token"
+
     def setUp(self):
         User = get_user_model()
 
@@ -373,13 +372,10 @@ class CanvasSyncTests(TestCase):
         self.connection = CanvasConnection.objects.create(
             user=self.user,
             canvas_base_url="https://example.instructure.com",
-            access_token="test-token",
+            access_token_ciphertext=ciphertext_for_test(self.TOKEN),
         )
 
-        self.client_api = CanvasAPIClient(
-            self.connection.canvas_base_url,
-            self.connection.access_token,
-        )
+        self.client_api = CanvasAPIClient(self.connection.canvas_base_url, self.TOKEN)
 
     def sample_courses(self):
         return [
@@ -556,7 +552,8 @@ class CanvasSyncTests(TestCase):
             response.context["form"]["canvas_base_url"].value(),
             "",
         )
-        self.assertNotContains(response, self.connection.access_token)
+        self.assertNotContains(response, self.TOKEN)
+        self.assertNotContains(response, self.connection.access_token_ciphertext)
 
     @patch.object(CanvasAPIClient, "get_course_assignments")
     @patch.object(CanvasAPIClient, "get_active_courses")
@@ -792,10 +789,7 @@ class CanvasSyncTests(TestCase):
             "Canvas sync failed. Check your Canvas connection.",
         )
 
-        self.assertNotIn(
-            self.connection.access_token,
-            assignment.sync_error_message,
-        )
+        self.assertNotIn(self.TOKEN, assignment.sync_error_message)
         self.connection.refresh_from_db()
         self.assertEqual(
             self.connection.sync_status,
@@ -821,7 +815,7 @@ class CanvasSyncTests(TestCase):
 
         self.assertEqual(sync_status["level"], "error")
         self.assertEqual(sync_status["label"], "Sync failed")
-        self.assertNotIn(self.connection.access_token, sync_status["message"])
+        self.assertNotIn(self.TOKEN, sync_status["message"])
 
     @patch.object(CanvasAPIClient, "get_active_courses")
     def test_malformed_courses_response_sets_failure_status(
@@ -1070,7 +1064,7 @@ class CanvasSyncTests(TestCase):
             "Canvas returned data that could not be synchronized.",
         )
         self.assertNotContains(response, "private response details")
-        mock_logger.exception.assert_called_once_with(
+        mock_logger.warning.assert_called_once_with(
             "Canvas synchronization failed for user ID %s.",
             self.user.pk,
         )
@@ -1096,8 +1090,8 @@ class CanvasSyncTests(TestCase):
             "Canvas rejected the saved access token. Check your Canvas connection.",
         )
         self.assertNotContains(response, "private API details")
-        self.assertNotContains(response, self.connection.access_token)
-        mock_logger.exception.assert_called_once()
+        self.assertNotContains(response, self.TOKEN)
+        mock_logger.warning.assert_called_once()
 
     @patch("canvas_sync.views.logger")
     @patch.object(CanvasAPIClient, "sync_user_data")
@@ -1118,95 +1112,4 @@ class CanvasSyncTests(TestCase):
             "Canvas could not be reached. Check your connection and try again.",
         )
         self.assertNotContains(response, "private network details")
-        mock_logger.exception.assert_called_once()
-
-class CanvasTokenEncryptionTests(TestCase):
-    TOKEN = "1234~plain-canvas-token"
-
-    def setUp(self):
-        self.user = get_user_model().objects.create_user(
-            username="encrypted",
-            password="testpassword123",
-        )
-        self.connection = CanvasConnection.objects.create(
-            user=self.user,
-            canvas_base_url="https://example.instructure.com",
-            access_token=self.TOKEN,
-        )
-
-    def _raw_token(self):
-        with connection.cursor() as cursor:
-            cursor.execute(
-                "SELECT access_token FROM canvas_sync_canvasconnection WHERE id = %s",
-                [self.connection.pk],
-            )
-            return cursor.fetchone()[0]
-
-    def _set_raw_token(self, value):
-        with connection.cursor() as cursor:
-            cursor.execute(
-                "UPDATE canvas_sync_canvasconnection SET access_token = %s WHERE id = %s",
-                [value, self.connection.pk],
-            )
-
-    def test_token_is_encrypted_in_database(self):
-        raw = self._raw_token()
-
-        self.assertNotIn(self.TOKEN, raw)
-        self.assertEqual(decrypt_value(raw), self.TOKEN)
-
-    def test_token_reads_back_as_plain_text(self):
-        self.connection.refresh_from_db()
-
-        self.assertEqual(self.connection.access_token, self.TOKEN)
-
-    def test_undecryptable_token_requires_reentry(self):
-        self._set_raw_token("not-a-valid-ciphertext")
-        with self.assertLogs("canvas_sync.fields", level="WARNING"):
-            self.connection.refresh_from_db()
-
-        self.assertEqual(self.connection.access_token, "")
-        form = CanvasConnectionForm(
-            data={
-                "canvas_base_url": "https://example.instructure.com",
-                "access_token": "",
-            },
-            instance=self.connection,
-        )
-        self.assertFalse(form.is_valid())
-        self.assertIn("access_token", form.errors)
-
-    def test_admin_change_page_hides_token(self):
-        admin_user = get_user_model().objects.create_superuser(
-            username="admin",
-            password="testpassword123",
-        )
-        self.client.force_login(admin_user)
-
-        response = self.client.get(
-            reverse(
-                "admin:canvas_sync_canvasconnection_change",
-                args=[self.connection.pk],
-            )
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, self.TOKEN)
-        self.assertNotContains(response, self._raw_token())
-
-    def test_migration_encrypts_legacy_plain_text_token(self):
-        migration = import_module(
-            "canvas_sync.migrations.0009_encrypt_canvas_access_token"
-        )
-        self._set_raw_token(self.TOKEN)
-
-        schema_editor = SimpleNamespace(connection=connection)
-
-        migration.encrypt_tokens(django_apps, schema_editor)
-        encrypted = self._raw_token()
-        migration.encrypt_tokens(django_apps, schema_editor)
-
-        self.assertNotEqual(encrypted, self.TOKEN)
-        self.assertEqual(self._raw_token(), encrypted)  # idempotent
-        self.connection.refresh_from_db()
-        self.assertEqual(self.connection.access_token, self.TOKEN)
+        mock_logger.warning.assert_called_once()

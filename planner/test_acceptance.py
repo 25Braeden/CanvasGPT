@@ -2,12 +2,13 @@ import datetime
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from ai_assistant.models import TaskItem
 from canvas_sync.models import Assignment, CanvasConnection, Course
 from canvas_sync.services import CanvasAPIClient
+from canvas_sync.test_support import TEST_TOKEN_KEY
 from planner.models import AvailabilityBlock, StudyPlan
 
 
@@ -15,6 +16,7 @@ User = get_user_model()
 UTC = datetime.timezone.utc
 
 
+@override_settings(CANVAS_TOKEN_ENCRYPTION_KEY=TEST_TOKEN_KEY)
 class OfflineMVPAcceptanceTest(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(

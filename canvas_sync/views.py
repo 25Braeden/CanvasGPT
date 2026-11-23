@@ -3,12 +3,16 @@ from datetime import timedelta
 
 import requests
 
+from django.conf import settings
 from django.contrib import messages
 from django.db import DatabaseError
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.views.decorators.csrf import csrf_protect
+from django.views.decorators.debug import sensitive_post_parameters, sensitive_variables
+from django.views.decorators.http import require_POST
 
 from ai_assistant.drafts import suggestion_context
 from ai_assistant.forms import TaskItemForm
@@ -16,6 +20,7 @@ from ai_assistant.forms import TaskItemForm
 from .forms import CanvasConnectionForm
 from .models import Assignment, CanvasConnection
 from .services import CanvasAPIClient, CanvasSyncError
+from .token_crypto import CanvasCredentialError, decrypt_token, encrypt_token, token_cipher
 
 
 STALE_AFTER = timedelta(hours=24)
@@ -50,7 +55,9 @@ def _sync_redirect(request):
     return redirect("canvas_sync:connection")
 
 
+@sensitive_post_parameters("access_token")
 @login_required
+@sensitive_variables("form", "token", "cipher", "connection")
 def canvas_connection(request):
     connection = CanvasConnection.objects.filter(user=request.user).first()
 
@@ -61,16 +68,24 @@ def canvas_connection(request):
         )
 
         if form.is_valid():
-            connection = form.save(commit=False)
-            connection.user = request.user
-            connection.save()
-
-            messages.success(
-                request,
-                "Canvas connection saved successfully.",
-            )
-
-            return redirect("canvas_sync:connection")
+            candidate = form.save(commit=False)
+            candidate.user = request.user
+            token = form.cleaned_data["access_token"]
+            try:
+                cipher = token_cipher(settings.CANVAS_TOKEN_ENCRYPTION_KEY)
+                fields = ["canvas_base_url"]
+                if token:
+                    candidate.access_token_ciphertext = encrypt_token(token, cipher=cipher)
+                    fields.append("access_token_ciphertext")
+                candidate.save(update_fields=fields if candidate.pk else None)
+            except CanvasCredentialError as error:
+                form.add_error(None, str(error))
+            except DatabaseError:
+                logger.warning("Canvas connection save failed for user ID %s.", request.user.pk)
+                form.add_error(None, "Canvas connection could not be saved. Try again.")
+            else:
+                messages.success(request, "Canvas connection saved successfully.")
+                return redirect("canvas_sync:connection")
     else:
         form = CanvasConnectionForm(
             instance=connection,
@@ -88,6 +103,24 @@ def canvas_connection(request):
 
 
 @login_required
+@require_POST
+@csrf_protect
+def disconnect_canvas(request):
+    if request.POST.get("confirm") != "yes":
+        messages.error(request, "Confirm that you want to disconnect Canvas.")
+    else:
+        CanvasConnection.objects.filter(user=request.user).delete()
+        messages.success(
+            request,
+            "Canvas disconnected. Your imported assignments, checklist tasks, and study plans remain. "
+            "This does not revoke your token in Canvas. To revoke it, open Canvas → Account → Settings "
+            "→ Approved Integrations and delete the token you created for CanvasGPT.",
+        )
+    return redirect("canvas_sync:connection")
+
+
+@login_required
+@sensitive_variables("connection", "client", "error")
 def sync_canvas(request):
     if request.method != "POST":
         return redirect("canvas_sync:connection")
@@ -104,7 +137,7 @@ def sync_canvas(request):
     try:
         client = CanvasAPIClient(
             connection.canvas_base_url,
-            connection.access_token,
+            decrypt_token(connection.access_token_ciphertext),
         )
 
         client.sync_user_data(request.user)
@@ -114,8 +147,11 @@ def sync_canvas(request):
             "Canvas data synced successfully.",
         )
 
+    except CanvasCredentialError as error:
+        messages.error(request, str(error))
+        return redirect("canvas_sync:connection")
     except (requests.RequestException, CanvasSyncError, DatabaseError) as error:
-        logger.exception(
+        logger.warning(
             "Canvas synchronization failed for user ID %s.",
             request.user.pk,
         )

@@ -58,8 +58,18 @@ Set these values in `.env`:
 DJANGO_SECRET_KEY='your-generated-secret-key'
 DJANGO_DEBUG=True
 DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
-CANVAS_TOKEN='your-canvas-access-token'
 ```
+
+For Canvas connections, generate a separate Fernet key in a private terminal:
+
+```bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+Set the output as `CANVAS_TOKEN_ENCRYPTION_KEY` in your local `.env` or inject
+it from your deployment secret manager. Do not reuse `DJANGO_SECRET_KEY`,
+commit the key, or paste it into tickets or shared logs. Enter the personal
+access token through the Canvas connection page, not in the key setting.
 
 ### 7. Run migrations
 
@@ -74,6 +84,58 @@ python manage.py runserver
 ```
 
 Open http://127.0.0.1:8000/.
+
+## Canvas credential deployment and recovery
+
+Use HTTPS for Canvas connections. Save a new token when changing the Canvas
+origin; otherwise, leaving the token blank preserves the saved credential.
+Disconnecting removes the local connection, not imported data. To revoke the
+original token, open Canvas → **Account** → **Settings** → **Approved Integrations**
+and delete the token you created for CanvasGPT.
+
+### Deploy or upgrade
+
+1. Stop all app instances and jobs that can write to the database. Take a
+   verified, access-restricted backup using SQLite's backup API or a backup
+   tool that includes committed WAL changes. Keep old keys in a separate
+   secret manager. Pre-migration databases, backups, journals, and WAL files
+   may contain plaintext; protect them accordingly. Keep Django and SQL debug
+   logging off in production and do not record Canvas authorization headers.
+2. Install dependencies and provision the same dedicated
+   `CANVAS_TOKEN_ENCRYPTION_KEY` for the migration and every app instance.
+   Check `python manage.py showmigrations canvas_sync`. If `0009` is **not**
+   applied, it encrypts the existing plaintext rows directly. If the
+   original hotfix already applied `0009`, set the temporary
+   `CANVAS_TOKEN_LEGACY_SECRET` to the exact secret that hotfix used (its old
+   dedicated setting, or its old `DJANGO_SECRET_KEY` if it used the fallback).
+   Migration `0010` verifies and re-encrypts those credentials. Do not attempt
+   to upgrade mixed legacy keys by guessing or treating unreadable rows as
+   plaintext. The migration aborts on unreadable nonempty credentials.
+3. Run `python manage.py migrate` while writes are stopped. Remove the
+   temporary legacy secret from the environment after success. Before
+   reopening traffic, use a test account to verify save, sync, and disconnect
+   without logging or dumping any credentials. For databases that previously
+   held plaintext, use SQLite `VACUUM INTO` to create a compact replacement
+   while offline, validate it, then switch to it. Keep the original and its
+   sidecar files protected until securely retired under your retention policy.
+
+### Rotate keys or recover from a failure
+
+- Stop writers and take a verified backup. Keep the current key in
+  `CANVAS_TOKEN_ENCRYPTION_KEY` and supply a newly generated,
+  distinct Fernet key as `CANVAS_TOKEN_NEXT_ENCRYPTION_KEY`. Run
+  `python manage.py rotate_canvas_token_key`. Rotation is all-or-nothing;
+  if it reports an error, do not switch keys. On success, set the active key
+  to the new value on every instance, clear the temporary setting, verify a
+  sync, and then resume traffic. Keep the previous key separately for as
+  long as any retained backups need it.
+- To roll back, restore the matching database backup, key, and app version
+  while offline; do not reverse migrations `0009` or `0010`. Verify on a
+  disposable copy first. If a restart or deployment fails after a successful
+  rotation, the live database needs the **new** key; the previous key is for
+  the previous database backup. If the matching key is lost, the ciphertext
+  cannot be recovered: retain the current planning data, ask students to
+  revoke affected tokens in Canvas and reconnect with new tokens.
 
 ## Task suggestions: browser demo (no API key)
 

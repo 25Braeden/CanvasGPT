@@ -6,6 +6,7 @@ import requests
 from django.db import DatabaseError, transaction
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
+from django.views.decorators.debug import sensitive_variables
 
 from .models import Assignment, CanvasConnection, Course, RubricCriterion
 
@@ -18,21 +19,21 @@ class CanvasSyncError(Exception):
 
 
 def _url_origin(url):
-    parsed = urlsplit(url)
     try:
+        parsed = urlsplit(url)
         port = parsed.port
     except ValueError:
         raise CanvasSyncError("Canvas returned an invalid URL.") from None
     scheme = parsed.scheme.lower()
     if (
-        scheme not in ("http", "https")
+        scheme != "https"
         or not parsed.hostname
         or parsed.username is not None
         or parsed.password is not None
     ):
         raise CanvasSyncError("Canvas returned an invalid URL.")
     if port is None:
-        port = 443 if scheme == "https" else 80
+        port = 443
     return scheme, parsed.hostname.lower(), port
 
 
@@ -109,6 +110,7 @@ def _optional_due_at(value):
 
 
 class CanvasAPIClient:
+    @sensitive_variables("access_token")
     def __init__(self, base_url, access_token):
         self.base_url = base_url.rstrip("/")
         self.origin = _url_origin(self.base_url)

@@ -30,6 +30,16 @@
                 <button type="submit">Sync Canvas</button>
             </form>
         </section>
+        <section class="section-divider" aria-labelledby="disconnect-canvas-heading">
+            <h2 id="disconnect-canvas-heading">Disconnect Canvas</h2>
+            <p>This removes your saved connection and stops future syncs until you reconnect. Your imported assignments, checklist tasks, and study plans remain in CanvasGPT.</p>
+            <p>Disconnecting does not revoke your token in Canvas. To revoke it, open Canvas → Account → Settings → Approved Integrations and delete the token you created for CanvasGPT.</p>
+            <form method="post" action="{% url 'canvas_sync:disconnect' %}">
+                {% csrf_token %}
+                <label><input type="checkbox" name="confirm" value="yes" required> I want to disconnect Canvas.</label>
+                <button type="submit">Disconnect Canvas</button>
+            </form>
+        </section>
     {% endif %}
 </section>
 {% endblock %}
