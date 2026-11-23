@@ -221,3 +221,65 @@ class DashboardAssignmentSectionsTests(TestCase):
         )
         self.assertNotIn(hidden_assignment, displayed_assignments)
         self.assertNotContains(response, hidden_assignment.title)
+
+    def create_connection(self, **kwargs):
+        kwargs.setdefault("canvas_base_url", "https://example.instructure.com")
+        kwargs.setdefault("access_token", "test-token")
+        kwargs.setdefault("sync_status", CanvasConnection.SyncStatus.SUCCESS)
+        return CanvasConnection.objects.create(user=self.user, **kwargs)
+
+    def test_stale_sync_notice_offers_sync_now_button(self):
+        self.create_connection(
+            last_synchronized_at=timezone.now() - timedelta(hours=25),
+        )
+
+        response = self.client.get(reverse("dashboard"))
+
+        self.assertEqual(response.context["sync_status"]["label"], "Sync may be stale")
+        self.assertContains(response, "Sync now")
+        self.assertContains(response, f'action="{reverse("canvas_sync:sync")}"')
+        self.assertContains(
+            response,
+            f'<input type="hidden" name="next" value="{reverse("dashboard")}">',
+            html=True,
+        )
+
+    def test_failed_sync_notice_offers_sync_now_button(self):
+        self.create_connection(
+            sync_status=CanvasConnection.SyncStatus.FAILED,
+            sync_error_message="Canvas could not be reached.",
+        )
+
+        response = self.client.get(reverse("dashboard"))
+
+        self.assertContains(response, "Sync now")
+
+    def test_up_to_date_sync_notice_hides_sync_now_button(self):
+        self.create_connection(last_synchronized_at=timezone.now())
+
+        response = self.client.get(reverse("dashboard"))
+
+        self.assertNotContains(response, "Sync now")
+
+    def test_sync_notice_without_connection_links_to_connection_page(self):
+        response = self.client.get(reverse("dashboard"))
+
+        self.assertNotContains(response, "Sync now")
+        self.assertContains(response, reverse("canvas_sync:connection"))
+        self.assertContains(response, "Connect Canvas")
+
+    @patch("canvas_sync.views.CanvasAPIClient.sync_user_data")
+    def test_sync_now_from_dashboard_returns_to_dashboard(self, mock_sync):
+        self.create_connection(
+            last_synchronized_at=timezone.now() - timedelta(hours=25),
+        )
+
+        response = self.client.post(
+            reverse("canvas_sync:sync"),
+            {"next": reverse("dashboard")},
+            follow=True,
+        )
+
+        self.assertEqual(response.request["PATH_INFO"], reverse("dashboard"))
+        self.assertContains(response, "Canvas data synced successfully.")
+        mock_sync.assert_called_once_with(self.user)

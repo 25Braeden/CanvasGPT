@@ -22,6 +22,26 @@ Use this checklist to quickly verify the main CanvasGPT workflow without needing
 - [ ] Confirm the task appears on the assignment page.
 - [ ] Mark the task complete and incomplete to confirm the toggle works.
 
+## Suggestion Generation, Review, and Acceptance (Offline Demo)
+
+- [ ] Keep `AI_SUGGESTIONS_MODE=demo` and leave `GEMINI_API_KEY` blank; restart Django after environment changes.
+- [ ] Run migrations, then open an assignment with a description or rubric criteria.
+- [ ] Click **Generate demo suggestions**; confirm only the preview updates, without reloading the page.
+- [ ] Confirm no tasks were added automatically and completed work is unchanged.
+- [ ] Navigate away and return; confirm the draft persists without another generation request.
+- [ ] Click **Review suggestions**, edit a description/estimate, and deselect one suggestion.
+- [ ] Save the review, reload, and confirm edits/selections persist without adding tasks.
+- [ ] Try accepting with nothing selected; confirm a safe validation error and no task changes.
+- [ ] Select suggestions and click **Accept selected tasks**; confirm only selected tasks append, with current edits and incomplete status.
+- [ ] Confirm existing tasks, completed work, and study sessions are unchanged.
+- [ ] Resubmit an old acceptance form; confirm it cannot create duplicates.
+- [ ] Generate a new draft and discard it; confirm the checklist is unchanged.
+- [ ] In two review tabs, save in one then submit the stale one; confirm it cannot overwrite or accept newer work.
+- [ ] Confirm another student cannot review, discard, or accept this student's drafts.
+- [ ] Confirm no real Gemini request was made; audit rows identify `demo-task-suggestions` and contain metadata only.
+- [ ] Check narrow/mobile layouts and keyboard navigation. Review saves retain scroll; acceptance returns to the assignment normally.
+- [ ] Repeat generation with JavaScript disabled; confirm the normal POST fallback and scroll restoration work.
+
 ## Availability
 
 - [ ] Open the availability page.

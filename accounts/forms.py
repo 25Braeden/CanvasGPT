@@ -1,6 +1,9 @@
+from zoneinfo import available_timezones
+
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 
+from .middleware import TIMEZONE_ALIASES
 from .models import StudentProfile, User
 
 
@@ -26,5 +29,24 @@ class StudentProfileForm(forms.ModelForm):
             'daily_study_goal_minutes',
             'notifications_enabled',
             'dark_mode_enabled',
+            'reduced_motion_enabled',
             'due_soon_days',
         )
+
+        labels = {'reduced_motion_enabled': 'Reduced motion'}
+        help_texts = {
+            'reduced_motion_enabled': (
+                'Disable sliding animations and hover movement. This preference '
+                'overrides your browser or device motion setting while signed in.'
+            ),
+        }
+
+    def clean_timezone(self):
+        timezone_name = self.cleaned_data['timezone'].strip()
+        lookup_name = TIMEZONE_ALIASES.get(timezone_name.upper(), timezone_name)
+        # available_timezones() is case-sensitive, unlike ZoneInfo on macOS.
+        if lookup_name not in available_timezones():
+            raise forms.ValidationError(
+                'Enter a valid timezone, such as "America/New_York" or "UTC".'
+            )
+        return timezone_name

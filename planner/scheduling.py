@@ -64,7 +64,7 @@ class PlanResult:
 def student_timezone(profile):
     try:
         return ZoneInfo(profile.timezone)
-    except (ZoneInfoNotFoundError, ValueError):
+    except (ZoneInfoNotFoundError, ValueError, OSError):
         return timezone.get_current_timezone()
 
 

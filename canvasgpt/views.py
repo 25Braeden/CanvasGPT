@@ -17,6 +17,13 @@ def home(request):
 
 @login_required
 def dashboard(request):
+    return render(request, 'dashboard.html', get_dashboard_context(request))
+
+
+def get_dashboard_context(request):
+    """Build the shared dashboard once per request, including on other app pages."""
+    if hasattr(request, '_dashboard_context'):
+        return request._dashboard_context
     is_new_user = request.session.pop('new_user', False)
     all_assignments = list(
         Assignment.objects.select_related('course')
@@ -37,26 +44,24 @@ def dashboard(request):
     )
     connection = CanvasConnection.objects.filter(user=request.user).first()
     sync_status = get_dashboard_sync_status(all_assignments, connection)
-    return render(
-        request,
-        'dashboard.html',
-        {
-            'is_new_user': is_new_user,
-            'assignments': assignments,
-            'due_soon_assignments': due_soon,
-            'due_later_assignments': due_later,
-            'past_due_assignments': past_due,
-            'zero_point_assignments': zero_point,
-            'due_soon_days': profile.due_soon_days,
-            'sync_status': sync_status,
-        },
-    )
+    request._dashboard_context = {
+        'is_new_user': is_new_user,
+        'assignments': assignments,
+        'due_soon_assignments': due_soon,
+        'due_later_assignments': due_later,
+        'past_due_assignments': past_due,
+        'zero_point_assignments': zero_point,
+        'due_soon_days': profile.due_soon_days,
+        'sync_status': sync_status,
+        'has_canvas_connection': connection is not None,
+    }
+    return request._dashboard_context
 
 
 def categorize_assignments(assignments, profile):
     try:
         student_timezone = ZoneInfo(profile.timezone)
-    except ZoneInfoNotFoundError:
+    except (ZoneInfoNotFoundError, ValueError, OSError):
         student_timezone = timezone.get_current_timezone()
 
     now = timezone.now()

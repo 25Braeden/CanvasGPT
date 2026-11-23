@@ -1,10 +1,14 @@
 {% load static %}
 <!doctype html>
-<html lang="en">
+<html lang="en"{% if user.is_authenticated and user.student_profile.reduced_motion_enabled %} class="reduced-motion"{% endif %}>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}CanvasGPT{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700;800&amp;display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'accounts/profile-menu.css' %}">
     <style>
         :root {
             --bg: #f7f8fc;
@@ -43,7 +47,7 @@
             min-height: 100vh;
             color: var(--text);
             background: radial-gradient(circle at top left, var(--page-glow) 0, transparent 32rem), var(--bg);
-            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-family: "Source Sans 3", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         }
 
         a { color: var(--primary-dark); font-weight: 700; }
@@ -54,15 +58,73 @@
             padding: 2rem 0 4rem;
         }
 
+        .site-shell.workspace-shell { width: min(1600px, calc(100% - 2rem)); }
+        .workspace { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.5rem; align-items: start; max-width: 56rem; margin: 0 auto; }
+        .workspace.panel-open { grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); max-width: none; }
+        .workspace-dashboard > .content-card { view-transition-name: dashboard; }
+        .workspace.panel-open .workspace-content { view-transition-name: workspace-panel; }
+        [hidden] { display: none !important; }
+        .workspace-dashboard, .workspace-content { min-width: 0; }
+        .workspace .content-card { width: 100%; padding: clamp(1rem, 2vw, 2rem); }
+        .workspace .assignment-row { flex-wrap: wrap; }
+        .workspace .assignment-row > div { min-width: 0; overflow-wrap: anywhere; }
+        .workspace-content { overflow-wrap: anywhere; }
+
+        /* Native same-origin navigation keeps normal links, forms and history.
+           The dashboard's named snapshot moves between its centered and left positions. */
+        @view-transition { navigation: {% if user.is_authenticated and user.student_profile.reduced_motion_enabled %}none{% else %}auto{% endif %}; }
+        /* Keep the panels out of each other's path: move left, then reveal;
+           dismiss the right panel first before moving back to the center. */
+        ::view-transition-group(dashboard) {
+            animation-duration: 350ms;
+            animation-delay: {% if workspace_panel_open %}0ms{% else %}250ms{% endif %};
+            animation-timing-function: ease-in-out;
+            animation-fill-mode: both;
+        }
+        ::view-transition-image-pair(dashboard), ::view-transition-image-pair(workspace-panel) {
+            overflow: clip;
+            isolation: isolate;
+            border-radius: 2rem;
+        }
+        ::view-transition-new(workspace-panel) { animation: panel-slide-in 300ms ease-out 350ms both; }
+        ::view-transition-old(workspace-panel) { animation: panel-slide-out 250ms ease-in both; }
+        @keyframes panel-slide-in {
+            from { opacity: 0; transform: translateX(2rem); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes panel-slide-out {
+            from { opacity: 1; transform: translateX(0); }
+            to { opacity: 0; transform: translateX(2rem); }
+        }
+        .reduced-motion *, .reduced-motion *::before, .reduced-motion *::after {
+            animation: none !important;
+            transition: none !important;
+            scroll-behavior: auto !important;
+        }
+        .reduced-motion .button:hover, .reduced-motion button:hover { transform: none; }
+        {% if not user.is_authenticated %}
+        @media (prefers-reduced-motion: reduce) {
+            @view-transition { navigation: none; }
+            ::view-transition-group(*), ::view-transition-new(*), ::view-transition-old(*) { animation: none !important; }
+            *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+            .button:hover, button:hover { transform: none; }
+        }
+        {% endif %}
+        @media (max-width: 960px) {
+            .workspace.panel-open { grid-template-columns: minmax(0, 1fr); }
+        }
+
         .site-nav {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 1rem;
+            gap: clamp(1.5rem, 4vw, 4rem);
+            row-gap: 1.5rem;
             margin-bottom: 4rem;
         }
 
         .brand {
+            flex-shrink: 0;
             display: flex;
             align-items: center;
             gap: 0.75rem;
@@ -90,6 +152,13 @@
             gap: 0.75rem;
         }
 
+        .nav-actions {
+            flex: 1;
+            min-width: 0;
+            justify-content: flex-end;
+            gap: 1rem clamp(1rem, 2vw, 2rem);
+        }
+
         .button, button {
             display: inline-flex;
             align-items: center;
@@ -97,7 +166,7 @@
             min-height: 2.75rem;
             padding: 0.75rem 1.1rem;
             border: 1px solid var(--border);
-            border-radius: 999px;
+            border-radius: 0.375rem;
             color: var(--text);
             background: var(--surface-translucent);
             font: inherit;
@@ -119,6 +188,25 @@
         }
 
         .button.primary:hover, button.primary:hover { background: var(--primary-dark); }
+
+        .site-nav .button {
+            padding: 0.5rem 0;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
+        }
+        .site-nav .button:hover {
+            background: transparent;
+            box-shadow: none;
+            transform: none;
+            text-decoration: underline;
+            text-underline-offset: 0.35rem;
+        }
+        .site-nav .button:focus-visible {
+            outline: 2px solid var(--primary);
+            outline-offset: 4px;
+        }
 
         .content-card {
             width: min(100%, 40rem);
@@ -153,11 +241,13 @@
 
         fieldset { margin: 1.5rem 0; padding: 1.25rem; border: 1px solid var(--border); border-radius: 1rem; }
         legend { padding: 0 0.5rem; font-weight: 800; }
+        .weekday-choices { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; }
+        .weekday-choices label { display: inline; margin: 0 0 0 0.35rem; font-weight: 600; }
         .section-divider { margin-top: 2.5rem; padding-top: 2rem; border-top: 1px solid var(--border); }
 
         .content-card.wide { width: min(100%, 56rem); }
         .metadata-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 1rem; margin: 1.5rem 0; }
-        .metadata-item, .rubric-item, .assignment-row, .sync-status { padding: 1rem; border: 1px solid var(--border); border-radius: 1rem; background: var(--surface-translucent); }
+        .metadata-item, .rubric-item, .assignment-row, .sync-status { padding: 1rem; border: 1px solid var(--border); border-radius: 0.5rem; background: var(--surface-translucent); }
         .metadata-label { display: block; margin-bottom: 0.35rem; color: var(--muted); font-size: 0.85rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; }
         .description-block { margin: 1.5rem 0; padding: 1rem; border: 1px solid var(--border); border-radius: 1rem; background: var(--input-bg); }
         .rubric-list, .assignment-list { display: grid; gap: 1rem; margin: 1rem 0 0; padding: 0; list-style: none; }
@@ -169,6 +259,25 @@
         .sync-status.warning { border-color: #f4c46a; background: rgba(244, 196, 106, 0.18); }
         .sync-status.error { border-color: #f4a3a3; background: rgba(244, 163, 163, 0.18); }
         .sync-status strong { display: block; margin-bottom: 0.35rem; }
+        .sync-status .sync-message { color: var(--text); font-weight: 600; }
+        .sync-now-form { margin: 0.5rem 0 0; }
+        .sync-status[data-sync-notice] { padding-right: 3.5rem; transition: opacity 200ms ease; }
+        .sync-status[data-sync-notice]:not(.dashboard-sync-status) { position: relative; }
+        .sync-status.sync-notice-dismissed { opacity: 0; pointer-events: none; }
+        .sync-status .sync-dismiss {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            min-height: 2.25rem;
+            width: 2.25rem;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            font-size: 1.5rem;
+            line-height: 1;
+        }
+        .sync-status .sync-dismiss:hover { transform: none; box-shadow: none; background: var(--bg); }
+        .sync-status .sync-dismiss:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
         .dashboard-sync-status {
             position: fixed;
             right: 1rem;
@@ -188,11 +297,12 @@
 
         @media (max-width: 640px) {
             .site-nav { align-items: flex-start; flex-direction: column; margin-bottom: 2.5rem; }
+            .site-nav .nav-actions { flex: auto; width: 100%; justify-content: flex-start; gap: 0.75rem 1rem; }
         }
     </style>
 </head>
 <body{% if user.is_authenticated and user.student_profile.dark_mode_enabled %} class="dark-mode"{% endif %}>
-    <div class="site-shell">
+    <div class="site-shell{% if dashboard_panel %} workspace-shell{% endif %}">
         <header class="site-nav">
             <a class="brand" href="{% url 'home' %}">
                 <span class="logo">CG</span>
@@ -200,22 +310,33 @@
             </a>
             <nav class="nav-actions" aria-label="Primary navigation">
                 {% if user.is_authenticated %}
-                    <span>Signed in as {{ user.username }}</span>
                     <a class="button" href="{% url 'dashboard' %}">Dashboard</a>
                     <a class="button" href="{% url 'planner:plan_detail' %}">Study plan</a>
                     <a class="button" href="{% url 'planner:availability_list' %}">Availability</a>
-                    <a class="button" href="{% url 'accounts:profile' %}">Profile</a>
-                    <form method="post" action="{% url 'accounts:logout' %}">
-                        {% csrf_token %}
-                        <button type="submit">Log out</button>
-                    </form>
+                    {% include 'accounts/_profile_menu.html' %}
                 {% else %}
                     <a class="button" href="{% url 'accounts:login' %}">Login</a>
                 {% endif %}
             </nav>
         </header>
-        <main>{% block content %}{% endblock %}</main>
+        <main{% if dashboard_panel %} class="workspace{% if workspace_panel_open %} panel-open{% endif %}"{% endif %}>
+            {% if dashboard_panel %}
+            <aside class="workspace-dashboard" aria-label="Dashboard" data-dashboard-user="{{ user.pk }}">
+                {% include '_dashboard_panel.html' %}
+            </aside>
+            {% endif %}
+            <div class="workspace-content" role="region" aria-label="Selected page"{% if dashboard_panel and not workspace_panel_open %} hidden{% endif %}>
+                {% block content %}{% endblock %}
+            </div>
+        </main>
     </div>
+    {% if dashboard_panel %}
+    <script src="{% static 'accounts/dashboard-sections.js' %}" defer></script>
+    <script src="{% static 'accounts/sync-notices.js' %}" defer></script>
+    {% endif %}
     <script src="{% static 'accounts/preserve-scroll.js' %}" defer></script>
+    {% if user.is_authenticated %}
+    <script src="{% static 'accounts/profile-avatar.js' %}" defer></script>
+    {% endif %}
 </body>
 </html>

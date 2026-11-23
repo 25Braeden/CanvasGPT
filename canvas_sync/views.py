@@ -8,7 +8,9 @@ from django.db import DatabaseError
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 
+from ai_assistant.drafts import suggestion_context
 from ai_assistant.forms import TaskItemForm
 
 from .forms import CanvasConnectionForm
@@ -34,6 +36,18 @@ def _sync_failure_message(error):
     if isinstance(error, CanvasSyncError):
         return "Canvas returned data that could not be synchronized."
     return "Canvas data could not be saved. Try syncing again later."
+
+
+def _sync_redirect(request):
+    """Return to the page that started the sync when it is a safe local URL."""
+    next_url = request.POST.get("next")
+    if next_url and url_has_allowed_host_and_scheme(
+        next_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return redirect(next_url)
+    return redirect("canvas_sync:connection")
 
 
 @login_required
@@ -107,7 +121,7 @@ def sync_canvas(request):
         )
         messages.error(request, _sync_failure_message(error))
 
-    return redirect("canvas_sync:connection")
+    return _sync_redirect(request)
 
 
 @login_required
@@ -128,6 +142,7 @@ def assignment_detail(request, pk):
             "assignment_sync_status": get_assignment_sync_status(assignment),
             "task_items": assignment.task_items.filter(user=request.user),
             "task_form": TaskItemForm(),
+            **suggestion_context(assignment=assignment, user=request.user),
         },
     )
 
